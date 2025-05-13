@@ -10,6 +10,12 @@ if (-not ($env:PATH -split ';' | Where-Object { $_ -eq $vagrantInstallDir })) {
     $env:PATH = "$vagrantInstallDir;$env:PATH"
 }
 
+# Ensure user/AppData/Local/Temp exists
+$tempDir = Join-Path $env:LOCALAPPDATA "Temp"
+if (-not (Test-Path $tempDir)) {
+    New-Item -ItemType Directory -Path $tempDir | Out-Null
+}
+
 # Set Vagrant directory (universal for any user)
 $vagrantDir = Join-Path $env:USERPROFILE "Documents\mininet-vm"
 Set-Location $vagrantDir
