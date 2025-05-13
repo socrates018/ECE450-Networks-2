@@ -16,6 +16,12 @@ if (-not (Test-Path $tempDir)) {
     New-Item -ItemType Directory -Path $tempDir | Out-Null
 }
 
+# Ensure C:\tmp exists
+$cTmpDir = "C:\tmp"
+if (-not (Test-Path $cTmpDir)) {
+    New-Item -ItemType Directory -Path $cTmpDir | Out-Null
+}
+
 # Set Vagrant directory (universal for any user)
 $vagrantDir = Join-Path $env:USERPROFILE "Documents\mininet-vm"
 Set-Location $vagrantDir
@@ -76,13 +82,16 @@ try {
 
 } catch {
     Write-Host "`nError: $_" -ForegroundColor Red
-    $input = Read-Host -Prompt "Press Enter to run 'vagrant up --debug', Space to run 'vagrant reload', or Ctrl+C to exit"
-    if ($input -eq "") {
-        Write-Host "`nRunning 'vagrant up --debug'..." -ForegroundColor Cyan
-        vagrant up --debug
-    } elseif ($input -eq " ") {
-        Write-Host "`nRunning 'vagrant reload'..." -ForegroundColor Cyan
-        vagrant reload
+    while ($true) {
+        Write-Host "Press Enter to run 'vagrant up --debug', Spacebar to run 'vagrant reload', or Ctrl+D to exit"
+        $key = [System.Console]::ReadKey($true)
+        if ($key.Key -eq 'Enter') {
+            Write-Host "`nRunning 'vagrant up --debug'..." -ForegroundColor Cyan
+            vagrant up --debug
+        } elseif ($key.Key -eq 'Spacebar') {
+            Write-Host "`nRunning 'vagrant reload'..." -ForegroundColor Cyan
+            vagrant reload
+        }
     }
 }
 
