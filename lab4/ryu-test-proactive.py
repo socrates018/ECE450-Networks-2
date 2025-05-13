@@ -58,27 +58,30 @@ class SimpleSwitch(app_manager.RyuApp):
 
         self.logger.info("Datapath ID is %s", hex(dpid))
         if dpid == 1:
-            self.add_flow( datapath, 1, "00:00:00:00:00:03", [datapath.ofproto_parser.OFPActionOutput(2)] )
-            self.add_flow( datapath, 1, "00:00:00:00:00:02", [datapath.ofproto_parser.OFPActionOutput(2)] )
-            self.add_flow( datapath, 1, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(2)] )
-            self.add_flow( datapath, 2, "00:00:00:00:00:01", [datapath.ofproto_parser.OFPActionOutput(1)] )
-            self.add_flow( datapath, 2, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(1)] )
+            # Sorted by in_port, then MAC
+            self.add_flow(datapath, 1, "00:00:00:00:00:02", [datapath.ofproto_parser.OFPActionOutput(2)])
+            self.add_flow(datapath, 1, "00:00:00:00:00:03", [datapath.ofproto_parser.OFPActionOutput(2)])
+            self.add_flow(datapath, 1, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(2)])
+            self.add_flow(datapath, 2, "00:00:00:00:00:01", [datapath.ofproto_parser.OFPActionOutput(1)])
+            self.add_flow(datapath, 2, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(1)])
         elif dpid == 2:
-            self.add_flow( datapath, 2, "00:00:00:00:00:03", [datapath.ofproto_parser.OFPActionOutput(3)] )
-            self.add_flow( datapath, 2, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(1)] )
-            self.add_flow( datapath, 3, "00:00:00:00:00:01", [datapath.ofproto_parser.OFPActionOutput(2)] )
-            self.add_flow( datapath, 3, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(2)] )
-            self.add_flow( datapath, 2, "00:00:00:00:00:02", [datapath.ofproto_parser.OFPActionOutput(1)] )
-            self.add_flow( datapath, 3, "00:00:00:00:00:02", [datapath.ofproto_parser.OFPActionOutput(1)] )
-            self.add_flow( datapath, 1, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(2), datapath.ofproto_parser.OFPActionOutput(3)] )
-            self.add_flow( datapath, 1, "00:00:00:00:00:01", [datapath.ofproto_parser.OFPActionOutput(2)] )
-            self.add_flow( datapath, 1, "00:00:00:00:00:03", [datapath.ofproto_parser.OFPActionOutput(3)] )
+            # Sorted by in_port, then MAC
+            self.add_flow(datapath, 1, "00:00:00:00:00:01", [datapath.ofproto_parser.OFPActionOutput(2)])
+            self.add_flow(datapath, 1, "00:00:00:00:00:03", [datapath.ofproto_parser.OFPActionOutput(3)])
+            self.add_flow(datapath, 1, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(2), datapath.ofproto_parser.OFPActionOutput(3)])
+            self.add_flow(datapath, 2, "00:00:00:00:00:02", [datapath.ofproto_parser.OFPActionOutput(1)])
+            self.add_flow(datapath, 2, "00:00:00:00:00:03", [datapath.ofproto_parser.OFPActionOutput(3)])
+            self.add_flow(datapath, 2, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(1), datapath.ofproto_parser.OFPActionOutput(3)])
+            self.add_flow(datapath, 3, "00:00:00:00:00:01", [datapath.ofproto_parser.OFPActionOutput(2)])
+            self.add_flow(datapath, 3, "00:00:00:00:00:02", [datapath.ofproto_parser.OFPActionOutput(1)])
+            self.add_flow(datapath, 3, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(2), datapath.ofproto_parser.OFPActionOutput(1)])
         elif dpid == 3:
-            self.add_flow( datapath, 2, "00:00:00:00:00:03", [datapath.ofproto_parser.OFPActionOutput(1)] )
-            self.add_flow( datapath, 1, "00:00:00:00:00:02", [datapath.ofproto_parser.OFPActionOutput(2)] )
-            self.add_flow( datapath, 2, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(1)] )
-            self.add_flow( datapath, 1, "00:00:00:00:00:01", [datapath.ofproto_parser.OFPActionOutput(2)] )
-            self.add_flow( datapath, 1, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(2)] )
+            # Sorted by in_port, then MAC
+            self.add_flow(datapath, 1, "00:00:00:00:00:01", [datapath.ofproto_parser.OFPActionOutput(2)])
+            self.add_flow(datapath, 1, "00:00:00:00:00:02", [datapath.ofproto_parser.OFPActionOutput(2)])
+            self.add_flow(datapath, 1, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(2)])
+            self.add_flow(datapath, 2, "00:00:00:00:00:03", [datapath.ofproto_parser.OFPActionOutput(1)])
+            self.add_flow(datapath, 2, "ff:ff:ff:ff:ff:ff", [datapath.ofproto_parser.OFPActionOutput(1)])
             
     ## The line below is comment-in, thus there is no function handling the packet-in event in this controller.
     #@set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
