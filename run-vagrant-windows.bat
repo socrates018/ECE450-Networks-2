@@ -35,6 +35,16 @@ if not exist "%VAGRANT_DIR%" (
 )
 cd /d "%VAGRANT_DIR%"
 
+:: Set VAGRANTFILE variable before checking/updating
+set "VAGRANTFILE=%VAGRANT_DIR%\Vagrantfile"
+
+:: Ensure Vagrantfile exists
+if not exist "%VAGRANTFILE%" (
+    echo Vagrantfile not found at "%VAGRANTFILE%".
+    pause
+    exit /b 1
+)
+
 :: Check VM status
 for /f "tokens=4 delims=," %%A in ('vagrant status --machine-readable ^| findstr /c:",state,"') do (
     set "VM_STATUS=%%A"
@@ -78,6 +88,7 @@ if errorlevel 2 (
 )
 
 echo Done.
+pause
 goto :eof
 
 :ErrorHandler
