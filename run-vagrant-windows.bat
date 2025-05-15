@@ -59,6 +59,9 @@ if /I not "%VM_STATUS%"=="running" (
     vagrant up
     if errorlevel 1 (
         echo Vagrant up failed.
+        :: Kill all VirtualBox tasks before error handler
+        taskkill /F /IM VBoxHeadless.exe >nul 2>&1
+        taskkill /F /IM VirtualBoxVM.exe >nul 2>&1
         goto ErrorHandler
     )
     set "STARTED_BY_SCRIPT=1"
@@ -101,11 +104,19 @@ choice /c UR /n /m "Press U for 'vagrant up --debug', R for 'vagrant reload', or
 if errorlevel 2 (
     echo Running 'vagrant reload'...
     vagrant reload
+    if errorlevel 1 (
+        echo 'vagrant reload' failed.
+        goto ErrorPrompt
+    )
     goto :eof
 )
 if errorlevel 1 (
     echo Running 'vagrant up --debug'...
     vagrant up --debug
+    if errorlevel 1 (
+        echo 'vagrant up --debug' failed.
+        goto ErrorPrompt
+    )
     goto :eof
 )
 :: If Enter is pressed (errorlevel 0), just exit
