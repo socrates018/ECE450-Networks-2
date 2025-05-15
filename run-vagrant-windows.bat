@@ -92,9 +92,6 @@ pause
 goto :eof
 
 :ErrorHandler
-:: Kill any leftover VirtualBox processes to avoid conflicts
-taskkill /F /IM VBoxHeadless.exe >nul 2>&1
-taskkill /F /IM VirtualBoxVM.exe >nul 2>&1
 echo.
 echo Error occurred during Vagrant operation.
 :ErrorPrompt

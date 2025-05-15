@@ -1,0 +1,10 @@
+.pio/
+build/
+*.bin
+*.elf
+*.hex
+*.exe
+*.o
+*.obj
+*.pyc
+__pycache__/
