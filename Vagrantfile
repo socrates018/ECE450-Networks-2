@@ -60,7 +60,7 @@ Vagrant.configure("2") do |config|
       "--uart1", "0x3F8", "4",
       "--uartmode1", "file", "C:/tmp/serial.log"
     ]
-    vb.memory = "4096"
+    vb.memory = "1024"
   end
   #
   # View the documentation for the provider you are using for more

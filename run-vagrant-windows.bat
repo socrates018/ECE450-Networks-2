@@ -83,6 +83,7 @@ if errorlevel 2 (
     echo Shutting down Vagrant VM...
     vagrant halt
     if errorlevel 1 (
+
         echo Failed to halt VM. Manually run 'vagrant halt'.
     ) else (
         echo VM halted successfully.
@@ -103,6 +104,10 @@ echo [U]p debug  [R]eload  [Enter] Exit
 choice /c UR /n /m "Press U for 'vagrant up --debug', R for 'vagrant reload', or Enter to exit: "
 if errorlevel 2 (
     echo Running 'vagrant reload'...
+    echo Vagrant up failed.
+    :: Kill all VirtualBox tasks before error handler
+    taskkill /F /IM VBoxHeadless.exe >nul 2>&1
+    taskkill /F /IM VirtualBoxVM.exe >nul 2>&1
     vagrant reload
     if errorlevel 1 (
         echo 'vagrant reload' failed.
@@ -112,6 +117,10 @@ if errorlevel 2 (
 )
 if errorlevel 1 (
     echo Running 'vagrant up --debug'...
+    echo Vagrant up failed.
+    :: Kill all VirtualBox tasks before error handler
+    taskkill /F /IM VBoxHeadless.exe >nul 2>&1
+    taskkill /F /IM VirtualBoxVM.exe >nul 2>&1
     vagrant up --debug
     if errorlevel 1 (
         echo 'vagrant up --debug' failed.
