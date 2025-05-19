@@ -113,6 +113,10 @@ class SimpleSwitch(app_manager.RyuApp):
         src = eth.src
         ethertype = eth.ethertype
 
+        if ethertype ==  ether_types.ETH_TYPE_IPV6:
+            # self.logger.info("IPv6 packet detected, ignoring")
+            return
+
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
 
@@ -124,6 +128,7 @@ class SimpleSwitch(app_manager.RyuApp):
             if target_ip == "10.0.0.2":
                 self.spoof_arp_reply(datapath, eth, arp_pkt, target_ip, msg.in_port)
                 return  # Do not forward ARP request
+
 
         # learn a mac address to avoid FLOOD next time.
         self.mac_to_port[dpid][src] = msg.in_port
