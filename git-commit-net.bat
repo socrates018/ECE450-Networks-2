@@ -23,7 +23,6 @@ if "%MODE%"=="1" (
     git clone "%REPO_URL%" "%CLONE_DIR%"
     if errorlevel 1 (
         echo Failed to clone repository. Check your REPO_URL.
-        pause
         exit /b
     )
     cd /d "%CLONE_DIR%"
@@ -59,7 +58,6 @@ if "%MODE%"=="1" (
     rmdir /s /q "%CLONE_DIR%" 2>nul
     echo.
     echo Mirror complete and pushed to GitHub.
-    pause
     exit /b
 )
 
@@ -71,7 +69,6 @@ if "%MODE%"=="2" (
     git clone "%REPO_URL%" "%DOWNLOADS_CLONE%"
     if errorlevel 1 (
         echo Failed to clone repository. Check your REPO_URL.
-        pause
         exit /b
     )
     echo.
@@ -90,7 +87,6 @@ if "%MODE%"=="2" (
     )
     echo.
     echo Changes from Downloads clone pushed to GitHub.
-    pause
     exit /b
 )
 
