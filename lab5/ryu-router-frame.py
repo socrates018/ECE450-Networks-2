@@ -30,6 +30,7 @@ from ryu.lib.packet import arp
 from ryu.lib.packet import ipv4
 from ryu.lib.packet import ether_types
 from ryu.lib.packet import arp
+from ryu.lib.packet import icmp
 
 # Define variables for router and host interface IPs and MACs
 ROUTER_IP1 = "192.168.1.1"
@@ -142,9 +143,9 @@ class SimpleSwitch(app_manager.RyuApp):
                 return
             elif eth.ethertype == ether_types.ETH_TYPE_IP: # this packet is IP packet
                 # Check if the IP packet contains ICMP
-                icmp_pkt = pkt.get_protocols()[2] if len(pkt.protocols) > 2 else None
+                icmp_pkt = pkt.get_protocol(icmp.icmp)
                 if ip_pkt.proto == 1:  # ICMP protocol number is 1
-                    self.logger.info("Received ICMP packet: %s", icmp_pkt)
+                    self.logger.info("Received ICMP packet: src=%s, dst=%s", ip_pkt.src, ip_pkt.dst)
                 self.logger.info("Received IP packet: %s", ip_pkt)
                 if ip_pkt and ip_pkt.dst in ARP_TABLE:
                     self.logger.info("Handling IP packet from %s to %s", ip_pkt.src, ip_pkt.dst)
@@ -186,8 +187,14 @@ class SimpleSwitch(app_manager.RyuApp):
         eth.src = ARP_TABLE[PORT_TO_IP[out_port]]
         eth.dst = ARP_TABLE[dst_ip]
         pkt.serialize()
+        # Print packet info before sending
+        ip_pkt = pkt.get_protocol(ipv4.ipv4)
+        self.logger.info("Forwarding packet: src_mac=%s dst_mac=%s src_ip=%s dst_ip=%s out_port=%d",
+                         eth.src, eth.dst,
+                         ip_pkt.src if ip_pkt else "N/A",
+                         ip_pkt.dst if ip_pkt else "N/A",
+                         out_port)
         actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-
         out = datapath.ofproto_parser.OFPPacketOut(
             datapath=datapath,
             buffer_id=datapath.ofproto.OFP_NO_BUFFER,
@@ -196,13 +203,13 @@ class SimpleSwitch(app_manager.RyuApp):
             data=pkt.data
         )
         datapath.send_msg(out)
-
         match = datapath.ofproto_parser.OFPMatch(
             # dl_dst=haddr_to_bin(ARP_TABLE[dst_ip])
             dl_type=ether_types.ETH_TYPE_IP,
             nw_dst=dst_ip
+            in_port=in_port
         )
-        self.add_flow(datapath, match, actions)
+        self.add_flow(datapath, match, actions) # this is not working
 
     def arp_reply(self, datapath, eth, arp_pkt, target_ip, in_port):
         self.logger.info("Building ARP reply for %s -> %s", target_ip, arp_pkt.src_ip)
