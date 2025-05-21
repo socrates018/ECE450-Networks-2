@@ -206,7 +206,7 @@ class SimpleSwitch(app_manager.RyuApp):
         match = datapath.ofproto_parser.OFPMatch(
             # dl_dst=haddr_to_bin(ARP_TABLE[dst_ip])
             dl_type=ether_types.ETH_TYPE_IP,
-            nw_dst=dst_ip
+            nw_dst=dst_ip,
             in_port=in_port
         )
         self.add_flow(datapath, match, actions) # this is not working
