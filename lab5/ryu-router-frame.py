@@ -204,12 +204,14 @@ class SimpleSwitch(app_manager.RyuApp):
         )
         datapath.send_msg(out)
         match = datapath.ofproto_parser.OFPMatch(
-            # dl_dst=haddr_to_bin(ARP_TABLE[dst_ip])
             dl_type=ether_types.ETH_TYPE_IP,
             nw_dst=dst_ip,
-            in_port=in_port
+            in_port=in_port,
+            dl_src=eth.src,
+            dl_dst=eth.dst
+
         )
-        self.add_flow(datapath, match, actions) # this is not working
+        self.add_flow(datapath, match, actions)
 
     def arp_reply(self, datapath, eth, arp_pkt, target_ip, in_port):
         self.logger.info("Building ARP reply for %s -> %s", target_ip, arp_pkt.src_ip)
@@ -258,4 +260,4 @@ class SimpleSwitch(app_manager.RyuApp):
         elif reason == ofproto.OFPPR_MODIFY:
             self.logger.info("port modified %s", port_no)
         else:
-            self.logger.info("Illeagal port state %s %s", port_no, reason)
+            self.logger.info("Illegal port state %s %s", port_no, reason)
