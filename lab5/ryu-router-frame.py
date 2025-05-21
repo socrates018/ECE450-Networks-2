@@ -116,12 +116,12 @@ class SimpleSwitch(app_manager.RyuApp):
 
         #ipv4 proto info
         ip_pkt = pkt.get_protocol(ipv4.ipv4)
-        parser = datapath.ofproto_parser
+        # parser = datapath.ofproto_parser
 
         self.mac_to_port.setdefault(dpid, {})
 
         # self.logger.info("packet in %s %s %s %s in_port=%s", hex(dpid), hex(ethertype), src, dst, msg.in_port)
-        if dpid == 1:
+        if dpid == 1 and not dst.lower().startswith('33:33'):
             self.logger.info(
                 "PacketIn: dpid=%s, ethertype=0x%04x, src_mac=%s, dst_mac=%s, in_port=%s",
                 hex(dpid), ethertype, src, dst, msg.in_port
@@ -141,10 +141,8 @@ class SimpleSwitch(app_manager.RyuApp):
                         self.logger.info("Preparing ARP reply for %s", target_ip)
                         self.arp_reply(datapath, eth, arp_pkt, target_ip, msg.in_port)
                 return
-            elif eth.ethertype == ether_types.ETH_TYPE_IP: # this packet is IP packet
-                # Check if the IP packet contains ICMP
-                icmp_pkt = pkt.get_protocol(icmp.icmp)
-                if ip_pkt.proto == 1:  # ICMP protocol number is 1
+            elif eth.ethertype == ether_types.ETH_TYPE_IP:
+                if ip_pkt.proto == 1:
                     self.logger.info("Received ICMP packet: src=%s, dst=%s", ip_pkt.src, ip_pkt.dst)
                 self.logger.info("Received IP packet: %s", ip_pkt)
                 if ip_pkt and ip_pkt.dst in ARP_TABLE:
@@ -202,16 +200,19 @@ class SimpleSwitch(app_manager.RyuApp):
             actions=actions,
             data=pkt.data
         )
-        datapath.send_msg(out)
+        # datapath.send_msg(out)
         match = datapath.ofproto_parser.OFPMatch(
             dl_type=ether_types.ETH_TYPE_IP,
-            nw_dst=dst_ip,
-            in_port=in_port,
-            dl_src=eth.src,
-            dl_dst=eth.dst
-
+            nw_dst=ip_pkt.dst
+            # in_port=in_port,
+            # dl_src=haddr_to_bin(eth.src),
+            # dl_dst=haddr_to_bin(eth.dst),
+            # nw_src=ip_pkt.src,
         )
+
+        self.logger.info("Flow: mac %s->%s ip %s->%s in:%d out:%d", eth.src, eth.dst, ip_pkt.src, ip_pkt.dst, in_port, out_port)
         self.add_flow(datapath, match, actions)
+
 
     def arp_reply(self, datapath, eth, arp_pkt, target_ip, in_port):
         self.logger.info("Building ARP reply for %s -> %s", target_ip, arp_pkt.src_ip)
