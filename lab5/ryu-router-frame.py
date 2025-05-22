@@ -122,26 +122,22 @@ class SimpleSwitch(app_manager.RyuApp):
 
         if dpid == 1:
             if eth.ethertype == ether_types.ETH_TYPE_ARP: # this packet is ARP packet
-                self.logger.info("Received ARP packet: %s", arp_pkt)
                 if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST:
                     target_ip = arp_pkt.dst_ip
                     self.logger.info("ARP request for %s from %s", target_ip, arp_pkt.src_ip)
-                    # Only reply if the ARP request is for one of the router's IPs
                     if target_ip == ROUTER_IP1 or target_ip == ROUTER_IP2:
-                        self.logger.info("Preparing ARP reply for %s", target_ip)
                         self.arp_reply(datapath, eth, arp_pkt, target_ip, msg.in_port)
                 return
             elif eth.ethertype == ether_types.ETH_TYPE_IP:
                 if ip_pkt.proto == 1:
                     self.logger.info("Received ICMP packet: src=%s, dst=%s", ip_pkt.src, ip_pkt.dst)
-                self.logger.info("Received IP packet: %s", ip_pkt)
+                else:
+                    self.logger.info("Received IP packet: %s", ip_pkt)
                 if ip_pkt and ip_pkt.dst in ARP_TABLE:
-
-                    # Add flow after forwarding the packet
                     out_port = ROUTING_TABLE[ip_pkt.dst]
                     router_mac = ARP_TABLE[PORT_TO_IP[out_port]]
                     dst_mac = ARP_TABLE[ip_pkt.dst]
-                    self.logger.info("Setting actions: set_dl_src=%s, set_dl_dst=%s, output=%d", router_mac, dst_mac, out_port)
+
                     match = datapath.ofproto_parser.OFPMatch(
                         dl_type=ether_types.ETH_TYPE_IP,
                         nw_dst=ip_pkt.dst
@@ -153,11 +149,8 @@ class SimpleSwitch(app_manager.RyuApp):
                         datapath.ofproto_parser.OFPActionOutput(out_port)
                     ]
 
-                    self.logger.info("Handling IP packet from %s to %s", ip_pkt.src, ip_pkt.dst)
-
                     self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, actions, out_port)
                     self.add_flow(datapath, match, actions)
-                    self.logger.info("Flow installed for IP dst %s out port %d", ip_pkt.dst, out_port)
                 return
             return
                  
@@ -209,7 +202,6 @@ class SimpleSwitch(app_manager.RyuApp):
         datapath.send_msg(out)
 
     def arp_reply(self, datapath, eth, arp_pkt, target_ip, in_port):
-        self.logger.info("Building ARP reply for %s -> %s", target_ip, arp_pkt.src_ip)
         target_mac = ARP_TABLE[target_ip]
         self.logger.info("Switch replying to ARP request for %s with MAC %s", target_ip, target_mac)
         arp_reply_pkt = packet.Packet()
@@ -239,14 +231,6 @@ class SimpleSwitch(app_manager.RyuApp):
             data=arp_reply_pkt.data
         )
         datapath.send_msg(out)
-        self.logger.info("Sending ARP reply out port %d", in_port)
-        match = datapath.ofproto_parser.OFPMatch(
-            dl_type=ether_types.ETH_TYPE_ARP,
-            nw_dst=arp_pkt.src_ip,
-            nw_proto=arp.ARP_REPLY  # Match ARP reply opcode for spoofing defense
-            # You can add more fields here for stricter matching if needed
-        )
-        self.add_flow(datapath, match, actions)
 
     @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
     def _port_status_handler(self, ev):
