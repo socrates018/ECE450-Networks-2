@@ -1,4 +1,11 @@
 sudo tcpdump -i any -nl -e "(arp or ip) and net 192.168.0.0/16"
 
 
-sudo tcpdump -i any -n "(arp or ip) and net 192.168.0.0/16" -w /vagrant/capture_arp_ip.pcap
+sudo tcpdump -i any -n "(arp or ip) and net 192.168.0.0/16" -w /vagrant/lab5/capture_arp_ip.pcap
+
+
+sudo tcpdump -i s1-eth1 -nl -e "arp or ip and net 192.168.0.0/16"
+
+
+sudo tcpdump -i s1-eth1 -nl -e "arp or ip and net 192.168.0.0/16" -w /vagrant/lab5/capture_arp_ip.pcap
+
