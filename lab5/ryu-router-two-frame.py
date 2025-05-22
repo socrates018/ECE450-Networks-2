@@ -135,29 +135,51 @@ class SimpleSwitch(app_manager.RyuApp):
         if dpid == 0x1A:
             if ethertype == ether_types.ETH_TYPE_ARP: # this packet is ARP packet
                 arp_pkt = pkt.get_protocol(arp.arp)
-                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST:
-                    target_ip = arp_pkt.dst_ip
-                    if target_ip in ARP_TABLE:
-                        self.arp_reply(datapath, eth, arp_pkt, target_ip, msg.in_port)
+                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip in ARP_TABLE:
+                    self.arp_reply(datapath, eth, arp_pkt, arp_pkt.dst_ip, msg.in_port)
                 return
             elif ethertype == ether_types.ETH_TYPE_IP: # this packet is IP packet
-                """
-                fill in the code here
-                """
+                ip_pkt = pkt.get_protocol(ipv4.ipv4)
+                if ip_pkt and ip_pkt.dst in ROUTING_TABLE[dpid]:
+                    out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
+                    router_mac = ARP_TABLE[PORT_TO_IP[dpid][out_port]]
+                    dst_mac = ARP_TABLE.get(ip_pkt.dst, "ff:ff:ff:ff:ff:ff")
+                    match = datapath.ofproto_parser.OFPMatch(
+                        dl_type=ether_types.ETH_TYPE_IP,
+                        nw_dst=ip_pkt.dst
+                    )
+                    actions = [
+                        datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
+                        datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
+                        datapath.ofproto_parser.OFPActionOutput(out_port)
+                    ]
+                    self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, actions, out_port)
+                    self.add_flow(datapath, match, actions)
                 return
             return
         if dpid == 0x1B:
             if ethertype == ether_types.ETH_TYPE_ARP: # this packet is ARP packet
                 arp_pkt = pkt.get_protocol(arp.arp)
-                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST:
-                    target_ip = arp_pkt.dst_ip
-                    if target_ip in ARP_TABLE:
-                        self.arp_reply(datapath, eth, arp_pkt, target_ip, msg.in_port)
+                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip in ARP_TABLE:
+                    self.arp_reply(datapath, eth, arp_pkt, arp_pkt.dst_ip, msg.in_port)
                 return
             elif ethertype == ether_types.ETH_TYPE_IP: # this packet is IP packet
-                """
-                fill in the code here
-                """
+                ip_pkt = pkt.get_protocol(ipv4.ipv4)
+                if ip_pkt and ip_pkt.dst in ROUTING_TABLE[dpid]:
+                    out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
+                    router_mac = ARP_TABLE[PORT_TO_IP[dpid][out_port]]
+                    dst_mac = ARP_TABLE.get(ip_pkt.dst, "ff:ff:ff:ff:ff:ff")
+                    match = datapath.ofproto_parser.OFPMatch(
+                        dl_type=ether_types.ETH_TYPE_IP,
+                        nw_dst=ip_pkt.dst
+                    )
+                    actions = [
+                        datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
+                        datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
+                        datapath.ofproto_parser.OFPActionOutput(out_port)
+                    ]
+                    self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, actions, out_port)
+                    self.add_flow(datapath, match, actions)
                 return
             return
                  
