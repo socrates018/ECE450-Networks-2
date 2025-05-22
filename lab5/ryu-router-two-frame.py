@@ -144,6 +144,7 @@ class SimpleSwitch(app_manager.RyuApp):
                     out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
                     router_mac = ARP_TABLE[PORT_TO_IP[dpid][out_port]]
                     dst_mac = ARP_TABLE.get(ip_pkt.dst, "ff:ff:ff:ff:ff:ff")
+                    self.logger.info(f"[DPID {hex(dpid)}] out_port: {out_port}, router_mac: {router_mac}, dst_mac: {dst_mac}")
                     match = datapath.ofproto_parser.OFPMatch(
                         dl_type=ether_types.ETH_TYPE_IP,
                         nw_dst=ip_pkt.dst
@@ -169,6 +170,7 @@ class SimpleSwitch(app_manager.RyuApp):
                     out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
                     router_mac = ARP_TABLE[PORT_TO_IP[dpid][out_port]]
                     dst_mac = ARP_TABLE.get(ip_pkt.dst, "ff:ff:ff:ff:ff:ff")
+                    self.logger.info(f"[DPID {hex(dpid)}] out_port: {out_port}, router_mac: {router_mac}, dst_mac: {dst_mac}")
                     match = datapath.ofproto_parser.OFPMatch(
                         dl_type=ether_types.ETH_TYPE_IP,
                         nw_dst=ip_pkt.dst
