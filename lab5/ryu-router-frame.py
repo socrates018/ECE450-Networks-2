@@ -46,14 +46,6 @@ H3_MAC = "00:00:00:00:02:02"
 H4_IP = "192.168.2.3"
 H4_MAC = "00:00:00:00:02:03"
 
-IP_TO_MAC = {
-    ROUTER_IP1: ROUTER_MAC1,
-    ROUTER_IP2: ROUTER_MAC2,
-    H1_IP: H1_MAC,
-    H2_IP: H2_MAC,
-    H3_IP: H3_MAC,
-    H4_IP: H4_MAC
-}
 PORT_TO_IP = {
     1: ROUTER_IP1,
     2: ROUTER_IP2
@@ -66,7 +58,6 @@ ROUTING_TABLE = {
     H3_IP: 2,
     H4_IP: 2
 }
-
 
 
 ARP_TABLE = {
@@ -85,7 +76,6 @@ class SimpleSwitch(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(SimpleSwitch, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
-        # self.ip_to_mac = ARP_TABLE
 
     def add_flow(self, datapath, match, actions):
         ofproto = datapath.ofproto
@@ -146,8 +136,26 @@ class SimpleSwitch(app_manager.RyuApp):
                     self.logger.info("Received ICMP packet: src=%s, dst=%s", ip_pkt.src, ip_pkt.dst)
                 self.logger.info("Received IP packet: %s", ip_pkt)
                 if ip_pkt and ip_pkt.dst in ARP_TABLE:
+
                     self.logger.info("Handling IP packet from %s to %s", ip_pkt.src, ip_pkt.dst)
-                    self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, ip_pkt.dst, eth)
+                    # self.modify_and_send_ip_packet(datapath, msg.in_port, pkt)
+
+                    # Add flow after forwarding the packet
+                    out_port = ROUTING_TABLE[ip_pkt.dst]
+                    router_mac = ARP_TABLE[PORT_TO_IP[out_port]]
+                    dst_mac = ARP_TABLE[ip_pkt.dst]
+                    self.logger.info("Setting actions: set_dl_src=%s, set_dl_dst=%s, output=%d", router_mac, dst_mac, out_port)
+                    match = datapath.ofproto_parser.OFPMatch(
+                        dl_type=ether_types.ETH_TYPE_IP,
+                        nw_dst=ip_pkt.dst
+                    )
+                    actions = [
+                        datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
+                        datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
+                        datapath.ofproto_parser.OFPActionOutput(out_port)
+                    ]
+                    self.add_flow(datapath, match, actions)
+                    self.logger.info("Flow installed for IP dst %s out port %d", ip_pkt.dst, out_port)
                 return
             return
                  
@@ -178,41 +186,35 @@ class SimpleSwitch(app_manager.RyuApp):
     fill in the code here for the ARP reply functions.
     """
         
-    def modify_and_send_ip_packet(self, datapath, in_port, pkt, dst_ip, eth):
-        self.logger.info("Routing IP packet to %s via port %d", dst_ip, ROUTING_TABLE[dst_ip])
-        out_port = ROUTING_TABLE[dst_ip]
-        # Modify the IP packet's destination and source MAC address
-        eth.src = ARP_TABLE[PORT_TO_IP[out_port]]
-        eth.dst = ARP_TABLE[dst_ip]
-        pkt.serialize()
-        # Print packet info before sending
-        ip_pkt = pkt.get_protocol(ipv4.ipv4)
-        self.logger.info("Forwarding packet: src_mac=%s dst_mac=%s src_ip=%s dst_ip=%s out_port=%d",
-                         eth.src, eth.dst,
-                         ip_pkt.src if ip_pkt else "N/A",
-                         ip_pkt.dst if ip_pkt else "N/A",
-                         out_port)
-        actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-        out = datapath.ofproto_parser.OFPPacketOut(
-            datapath=datapath,
-            buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-            in_port=in_port,
-            actions=actions,
-            data=pkt.data
-        )
-        # datapath.send_msg(out)
-        match = datapath.ofproto_parser.OFPMatch(
-            dl_type=ether_types.ETH_TYPE_IP,
-            nw_dst=ip_pkt.dst
-            # in_port=in_port,
-            # dl_src=haddr_to_bin(eth.src),
-            # dl_dst=haddr_to_bin(eth.dst),
-            # nw_src=ip_pkt.src,
-        )
-
-        self.logger.info("Flow: mac %s->%s ip %s->%s in:%d out:%d", eth.src, eth.dst, ip_pkt.src, ip_pkt.dst, in_port, out_port)
-        self.add_flow(datapath, match, actions)
-
+    # def modify_and_send_ip_packet(self, datapath, in_port, pkt):
+    #     # Extract IP and Ethernet headers from the packet
+    #     ip_pkt = pkt.get_protocol(ipv4.ipv4)
+    #     eth = pkt.get_protocol(ethernet.ethernet)
+    #     dst_ip = ip_pkt.dst
+    #
+    #     out_port = ROUTING_TABLE[dst_ip]
+    #
+    #     self.logger.info("Routing IP packet to %s via port %d", dst_ip, out_port)
+    #
+    #     # Modify the IP packet's destination and source MAC address
+    #     eth.src = ARP_TABLE[PORT_TO_IP[out_port]]
+    #     eth.dst = ARP_TABLE[dst_ip]
+    #     pkt.serialize()
+    #     # Print packet info before sending
+    #     self.logger.info("Forwarding packet: src_mac=%s dst_mac=%s src_ip=%s dst_ip=%s out_port=%d",
+    #                      eth.src, eth.dst,
+    #                      ip_pkt.src if ip_pkt else "N/A",
+    #                      ip_pkt.dst if ip_pkt else "N/A",
+    #                      out_port)
+    #     actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+    #     out = datapath.ofproto_parser.OFPPacketOut(
+    #         datapath=datapath,
+    #         buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+    #         in_port=in_port,
+    #         actions=actions,
+    #         data=pkt.data
+    #     )
+    #     datapath.send_msg(out)
 
     def arp_reply(self, datapath, eth, arp_pkt, target_ip, in_port):
         self.logger.info("Building ARP reply for %s -> %s", target_ip, arp_pkt.src_ip)
@@ -246,6 +248,13 @@ class SimpleSwitch(app_manager.RyuApp):
         )
         datapath.send_msg(out)
         self.logger.info("Sending ARP reply out port %d", in_port)
+        match = datapath.ofproto_parser.OFPMatch(
+            dl_type=ether_types.ETH_TYPE_ARP,
+            nw_dst=arp_pkt.src_ip,
+            nw_proto=arp.ARP_REPLY  # Match ARP reply opcode for spoofing defense
+            # You can add more fields here for stricter matching if needed
+        )
+        self.add_flow(datapath, match, actions)
 
     @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
     def _port_status_handler(self, ev):
