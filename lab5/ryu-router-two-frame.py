@@ -50,16 +50,16 @@ H4_MAC = "00:00:00:00:02:03"
 
 # Port to IP mapping for both routers (dpid 0x1A and 0x1B)
 PORT_TO_IP = {
-    0x1A: {1: ROUTER1_RIGHT_IP, 2: ROUTER1_LEFT_IP},  # port 1: inter-router, port 2: left subnet
-    0x1B: {1: ROUTER2_LEFT_IP, 2: ROUTER2_RIGHT_IP}   # port 1: inter-router, port 2: right subnet
+    0x1A: {1: ROUTER1_RIGHT_IP, 2: ROUTER1_LEFT_IP},
+    0x1B: {1: ROUTER2_LEFT_IP, 2: ROUTER2_RIGHT_IP} 
 }
 
-# Routing table for both routers (destination IP -> output port)
+
 ROUTING_TABLE = {
     0x1A: {
         H1_IP: 2,  # left subnet
         H2_IP: 2,
-        H3_IP: 1,  # right subnet via inter-router link
+        H3_IP: 1,  # right subnet
         H4_IP: 1,
         ROUTER2_LEFT_IP: 1,  # to right router
         ROUTER2_RIGHT_IP: 1
@@ -67,14 +67,14 @@ ROUTING_TABLE = {
     0x1B: {
         H3_IP: 2,  # right subnet
         H4_IP: 2,
-        H1_IP: 1,  # left subnet via inter-router link
+        H1_IP: 1,  # left subnet
         H2_IP: 1,
         ROUTER1_LEFT_IP: 1,  # to left router
         ROUTER1_RIGHT_IP: 1
     }
 }
 
-# ARP table for both routers (IP -> MAC)
+
 ARP_TABLE = {
     # Router 1
     ROUTER1_LEFT_IP: ROUTER1_LEFT_MAC,
@@ -145,13 +145,12 @@ class SimpleSwitch(app_manager.RyuApp):
         self.mac_to_port[dpid][src] = msg.in_port
 
         if dpid == 0x1A:
-            if ethertype == ether_types.ETH_TYPE_ARP: # this packet is ARP packet
+            if ethertype == ether_types.ETH_TYPE_ARP: 
                 arp_pkt = pkt.get_protocol(arp.arp)
                 if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip in [ROUTER1_LEFT_IP, ROUTER1_RIGHT_IP, ROUTER2_LEFT_IP, ROUTER2_RIGHT_IP]:
                     self.arp_reply(datapath, eth, arp_pkt, arp_pkt.dst_ip, msg.in_port)
                 return
-            
-            elif ethertype == ether_types.ETH_TYPE_IP: # this packet is IP packet
+            elif ethertype == ether_types.ETH_TYPE_IP: 
                 ip_pkt = pkt.get_protocol(ipv4.ipv4)
                 if ip_pkt and ip_pkt.dst in ROUTING_TABLE[dpid]:
                     out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
@@ -175,12 +174,12 @@ class SimpleSwitch(app_manager.RyuApp):
                 return
             return
         if dpid == 0x1B:
-            if ethertype == ether_types.ETH_TYPE_ARP: # this packet is ARP packet
+            if ethertype == ether_types.ETH_TYPE_ARP: 
                 arp_pkt = pkt.get_protocol(arp.arp)
                 if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip in [ROUTER1_LEFT_IP, ROUTER1_RIGHT_IP, ROUTER2_LEFT_IP, ROUTER2_RIGHT_IP]:
                     self.arp_reply(datapath, eth, arp_pkt, arp_pkt.dst_ip, msg.in_port)
                 return
-            elif ethertype == ether_types.ETH_TYPE_IP: # this packet is IP packet
+            elif ethertype == ether_types.ETH_TYPE_IP: 
                 ip_pkt = pkt.get_protocol(ipv4.ipv4)
                 if ip_pkt and ip_pkt.dst in ROUTING_TABLE[dpid]:
                     out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
@@ -228,7 +227,6 @@ class SimpleSwitch(app_manager.RyuApp):
         datapath.send_msg(out)
 
     def arp_reply(self, datapath, eth, arp_pkt, target_ip, in_port):
-        # Use the ARP_TABLE defined at the top
         target_mac = ARP_TABLE[target_ip]
         self.logger.info("Switch replying to ARP request for %s with MAC %s", target_ip, target_mac)
         arp_reply_pkt = packet.Packet()
