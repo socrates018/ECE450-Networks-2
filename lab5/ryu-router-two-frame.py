@@ -31,10 +31,14 @@ from ryu.lib.packet import ipv4
 from ryu.lib.packet import ether_types
 
 # Router and host interface IPs and MACs for two routers
-ROUTER1_IP = "192.168.1.1"
-ROUTER1_MAC = "00:00:00:00:01:01"
-ROUTER2_IP = "192.168.2.1"
-ROUTER2_MAC = "00:00:00:00:02:01"
+ROUTER1_LEFT_IP = "192.168.1.1"
+ROUTER1_LEFT_MAC = "00:00:00:00:01:01"
+ROUTER1_RIGHT_IP = "192.168.3.1"
+ROUTER1_RIGHT_MAC = "00:00:00:00:03:01"
+ROUTER2_LEFT_IP = "192.168.3.2"
+ROUTER2_LEFT_MAC = "00:00:00:00:03:02"
+ROUTER2_RIGHT_IP = "192.168.2.1"
+ROUTER2_RIGHT_MAC = "00:00:00:00:02:01"
 H1_IP = "192.168.1.2"
 H1_MAC = "00:00:00:00:01:02"
 H2_IP = "192.168.1.3"
@@ -46,32 +50,40 @@ H4_MAC = "00:00:00:00:02:03"
 
 # Port to IP mapping for both routers (dpid 0x1A and 0x1B)
 PORT_TO_IP = {
-    0x1A: {1: ROUTER1_IP, 2: ROUTER2_IP},
-    0x1B: {1: ROUTER1_IP, 2: ROUTER2_IP}
+    0x1A: {1: ROUTER1_RIGHT_IP, 2: ROUTER1_LEFT_IP},  # port 1: inter-router, port 2: left subnet
+    0x1B: {1: ROUTER2_LEFT_IP, 2: ROUTER2_RIGHT_IP}   # port 1: inter-router, port 2: right subnet
 }
 
 # Routing table for both routers (destination IP -> output port)
 ROUTING_TABLE = {
     0x1A: {
-        H1_IP: 2,  # via s1a-s1b link
+        H1_IP: 2,  # left subnet
         H2_IP: 2,
-        H3_IP: 1,  # direct to s3
-        H4_IP: 1
+        H3_IP: 1,  # right subnet via inter-router link
+        H4_IP: 1,
+        ROUTER2_LEFT_IP: 1,  # to right router
+        ROUTER2_RIGHT_IP: 1
     },
     0x1B: {
-        H1_IP: 1,  # direct to s2
+        H3_IP: 2,  # right subnet
+        H4_IP: 2,
+        H1_IP: 1,  # left subnet via inter-router link
         H2_IP: 1,
-        H3_IP: 2,  # direct to s3
-        H4_IP: 2
+        ROUTER1_LEFT_IP: 1,  # to left router
+        ROUTER1_RIGHT_IP: 1
     }
 }
 
 # ARP table for both routers (IP -> MAC)
 ARP_TABLE = {
-    ROUTER1_IP: ROUTER1_MAC,
-    ROUTER2_IP: ROUTER2_MAC,
+    # Router 1
+    ROUTER1_LEFT_IP: ROUTER1_LEFT_MAC,
+    ROUTER1_RIGHT_IP: ROUTER1_RIGHT_MAC,
     H1_IP: H1_MAC,
     H2_IP: H2_MAC,
+    # Router 2
+    ROUTER2_LEFT_IP: ROUTER2_LEFT_MAC,
+    ROUTER2_RIGHT_IP: ROUTER2_RIGHT_MAC,
     H3_IP: H3_MAC,
     H4_IP: H4_MAC
 }
@@ -135,33 +147,37 @@ class SimpleSwitch(app_manager.RyuApp):
         if dpid == 0x1A:
             if ethertype == ether_types.ETH_TYPE_ARP: # this packet is ARP packet
                 arp_pkt = pkt.get_protocol(arp.arp)
-                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip in ARP_TABLE:
+                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip in [ROUTER1_LEFT_IP, ROUTER1_RIGHT_IP, ROUTER2_LEFT_IP, ROUTER2_RIGHT_IP]:
                     self.arp_reply(datapath, eth, arp_pkt, arp_pkt.dst_ip, msg.in_port)
                 return
+            
             elif ethertype == ether_types.ETH_TYPE_IP: # this packet is IP packet
                 ip_pkt = pkt.get_protocol(ipv4.ipv4)
                 if ip_pkt and ip_pkt.dst in ROUTING_TABLE[dpid]:
                     out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
                     router_mac = ARP_TABLE[PORT_TO_IP[dpid][out_port]]
-                    dst_mac = ARP_TABLE.get(ip_pkt.dst, "ff:ff:ff:ff:ff:ff")
-                    self.logger.info(f"[DPID {hex(dpid)}] out_port: {out_port}, router_mac: {router_mac}, dst_mac: {dst_mac}")
-                    match = datapath.ofproto_parser.OFPMatch(
-                        dl_type=ether_types.ETH_TYPE_IP,
-                        nw_dst=ip_pkt.dst
-                    )
-                    actions = [
-                        datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
-                        datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
-                        datapath.ofproto_parser.OFPActionOutput(out_port)
-                    ]
-                    self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, actions, out_port)
-                    self.add_flow(datapath, match, actions)
+                    if ip_pkt.dst in ARP_TABLE:
+                        dst_mac = ARP_TABLE[ip_pkt.dst]
+                        self.logger.info(f"[DPID {hex(dpid)}] out_port: {out_port}, router_mac: {router_mac}, dst_mac: {dst_mac}")
+                        match = datapath.ofproto_parser.OFPMatch(
+                            dl_type=ether_types.ETH_TYPE_IP,
+                            nw_dst=ip_pkt.dst
+                        )
+                        actions = [
+                            datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
+                            datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
+                            datapath.ofproto_parser.OFPActionOutput(out_port)
+                        ]
+                        self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, actions, out_port)
+                        self.add_flow(datapath, match, actions)
+                    else:
+                        self.logger.info(f"[DPID {hex(dpid)}] No ARP entry for {ip_pkt.dst}, skipping forwarding.")
                 return
             return
         if dpid == 0x1B:
             if ethertype == ether_types.ETH_TYPE_ARP: # this packet is ARP packet
                 arp_pkt = pkt.get_protocol(arp.arp)
-                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip in ARP_TABLE:
+                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip in [ROUTER1_LEFT_IP, ROUTER1_RIGHT_IP, ROUTER2_LEFT_IP, ROUTER2_RIGHT_IP]:
                     self.arp_reply(datapath, eth, arp_pkt, arp_pkt.dst_ip, msg.in_port)
                 return
             elif ethertype == ether_types.ETH_TYPE_IP: # this packet is IP packet
@@ -169,19 +185,22 @@ class SimpleSwitch(app_manager.RyuApp):
                 if ip_pkt and ip_pkt.dst in ROUTING_TABLE[dpid]:
                     out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
                     router_mac = ARP_TABLE[PORT_TO_IP[dpid][out_port]]
-                    dst_mac = ARP_TABLE.get(ip_pkt.dst, "ff:ff:ff:ff:ff:ff")
-                    self.logger.info(f"[DPID {hex(dpid)}] out_port: {out_port}, router_mac: {router_mac}, dst_mac: {dst_mac}")
-                    match = datapath.ofproto_parser.OFPMatch(
-                        dl_type=ether_types.ETH_TYPE_IP,
-                        nw_dst=ip_pkt.dst
-                    )
-                    actions = [
-                        datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
-                        datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
-                        datapath.ofproto_parser.OFPActionOutput(out_port)
-                    ]
-                    self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, actions, out_port)
-                    self.add_flow(datapath, match, actions)
+                    if ip_pkt.dst in ARP_TABLE:
+                        dst_mac = ARP_TABLE[ip_pkt.dst]
+                        self.logger.info(f"[DPID {hex(dpid)}] out_port: {out_port}, router_mac: {router_mac}, dst_mac: {dst_mac}")
+                        match = datapath.ofproto_parser.OFPMatch(
+                            dl_type=ether_types.ETH_TYPE_IP,
+                            nw_dst=ip_pkt.dst
+                        )
+                        actions = [
+                            datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
+                            datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
+                            datapath.ofproto_parser.OFPActionOutput(out_port)
+                        ]
+                        self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, actions, out_port)
+                        self.add_flow(datapath, match, actions)
+                    else:
+                        self.logger.info(f"[DPID {hex(dpid)}] No ARP entry for {ip_pkt.dst}, skipping forwarding.")
                 return
             return
                  
