@@ -55,11 +55,11 @@ Vagrant.configure("2") do |config|
   # Example for VirtualBox:
   #
   config.vm.provider "virtualbox" do |vb|
-    # e.g. create C:\tmp on the host, then in your Vagrantfile:
-    vb.customize ["modifyvm", :id,
-      "--uart1", "0x3F8", "4",
-      "--uartmode1", "file", "C:/tmp/serial.log"
-    ]
+    # UART logging is disabled for Windows hosts
+    # vb.customize ["modifyvm", :id,
+    #   "--uart1", "0x3F8", "4",
+    #   "--uartmode1", "file", "C:/tmp/serial.log"
+    # ]
     vb.memory = "1024"
   end
   #
