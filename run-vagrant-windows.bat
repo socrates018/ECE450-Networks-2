@@ -47,10 +47,15 @@ goto :eof
 :AfterSSH
 :: Prompt to halt VM or SSH again after SSH (always prompt, no debug output)
 echo.
-echo [H]alt VM  [S]SH again  [Any other key] Exit
-set "CHOICE="
-set /p CHOICE="Press H to halt the VM, S to SSH again, or any other key to exit (auto close in 10s): "
-if /I "%CHOICE%"=="H" (
+echo [H]alt VM  [S]SH again  [E]xit
+choice /c HSE /n /t 10 /d E /m "Press H to halt the VM, S to SSH again, or E to exit (auto close in 10s): "
+if errorlevel 3 (
+    exit
+) else if errorlevel 2 (
+    echo Reopening SSH session...
+    vagrant ssh -- -t "cd /vagrant; exec bash -l"
+    goto AfterSSH
+) else if errorlevel 1 (
     echo Shutting down Vagrant VM...
     vagrant halt
     if errorlevel 1 (
@@ -59,14 +64,6 @@ if /I "%CHOICE%"=="H" (
         echo VM halted successfully.
     )
     timeout /t 2 >nul
-    goto :eof
-) else if /I "%CHOICE%"=="S" (
-    echo Reopening SSH session...
-    vagrant ssh -- -t "cd /vagrant; exec bash -l"
-    goto AfterSSH
-) else (
-    echo Closing this terminal in 10 seconds...
-    timeout /t 10 >nul
     exit
 )
 
@@ -79,8 +76,11 @@ echo.
 echo Error occurred during Vagrant operation.
 :ErrorPrompt
 echo.
-echo [U]p debug  [R]eload  [S]SH again  [H]alt VM  [Enter] Exit
-choice /c URSH /n /t 30 /d H /m "Press U for 'vagrant up --debug', R for 'vagrant reload', S for SSH again, H to halt VM, or Enter to exit (auto halt in 30s): "
+echo [U]p debug  [R]eload  [S]SH again  [H]alt VM  [E]xit
+choice /c URSHE /n /t 30 /d E /m "Press U for 'vagrant up --debug', R for 'vagrant reload', S for SSH again, H to halt VM, or E to exit (auto close in 30s): "
+if errorlevel 5 (
+    exit
+)
 if errorlevel 4 (
     echo Shutting down Vagrant VM...
     vagrant halt
@@ -121,6 +121,4 @@ if errorlevel 1 (
     goto :eof
 )
 :: If Enter is pressed (errorlevel 0), just close the terminal after 10s
-echo Closing this terminal in 10 seconds...
-timeout /t 10 >nul
 exit
