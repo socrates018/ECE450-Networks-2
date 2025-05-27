@@ -49,20 +49,20 @@ PORT_TO_IP = {
     0x1B: {2: ROUTER2_RIGHT_IP}
 }
 
+# Routing table now only has entries for hosts that are on the other router's subnet,
+# so router 1 only has h3 and h4, and router 2 only has h1 and h2. 
+# This should make it more like a real router i think?
 ROUTING_TABLE = {
     0x1A: {
-        H1_IP: 2,
-        H2_IP: 2,
         H3_IP: 2,
         H4_IP: 2
     },
     0x1B: {
-        H3_IP: 2,
-        H4_IP: 2,
         H1_IP: 2,
         H2_IP: 2
     }
 }
+
 
 
 ARP_TABLE = {
