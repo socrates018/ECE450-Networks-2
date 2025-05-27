@@ -30,7 +30,7 @@ from ryu.lib.packet import arp
 from ryu.lib.packet import ipv4
 from ryu.lib.packet import ether_types
 
-# Router and host interface IPs and MACs for two routers
+# Router and host interface IPs and MACs
 ROUTER1_LEFT_IP = "192.168.1.1"
 ROUTER1_LEFT_MAC = "00:00:00:00:01:01"
 ROUTER2_RIGHT_IP = "192.168.2.1"
@@ -253,4 +253,4 @@ class SimpleSwitch(app_manager.RyuApp):
         elif reason == ofproto.OFPPR_MODIFY:
             self.logger.info("port modified %s", port_no)
         else:
-            self.logger.info("Illeagal port state %s %s", port_no, reason)
+            self.logger.info("Illegal port state %s %s", port_no, reason)
