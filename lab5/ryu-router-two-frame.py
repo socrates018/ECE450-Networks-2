@@ -31,8 +31,14 @@ from ryu.lib.packet import ipv4
 from ryu.lib.packet import ether_types
 
 # Router and host interface IPs and MACs
+# Router 1: left (192.168.1.1, 00:00:00:00:01:01), right (192.168.3.1, 00:00:00:00:03:01)
+# Router 2: left (192.168.3.2, 00:00:00:00:03:02), right (192.168.2.1, 00:00:00:00:02:01)
 ROUTER1_LEFT_IP = "192.168.1.1"
 ROUTER1_LEFT_MAC = "00:00:00:00:01:01"
+ROUTER1_RIGHT_IP = "192.168.3.1"
+ROUTER1_RIGHT_MAC = "00:00:00:00:03:01"
+ROUTER2_LEFT_IP = "192.168.3.2"
+ROUTER2_LEFT_MAC = "00:00:00:00:03:02"
 ROUTER2_RIGHT_IP = "192.168.2.1"
 ROUTER2_RIGHT_MAC = "00:00:00:00:02:01"
 H1_IP = "192.168.1.2"
@@ -45,8 +51,8 @@ H4_IP = "192.168.2.3"
 H4_MAC = "00:00:00:00:02:03"
 
 PORT_TO_IP = {
-    0x1A: {2: ROUTER1_LEFT_IP},
-    0x1B: {2: ROUTER2_RIGHT_IP}
+    0x1A: {1: ROUTER1_RIGHT_IP, 2: ROUTER1_LEFT_IP},
+    0x1B: {1: ROUTER2_LEFT_IP, 2: ROUTER2_RIGHT_IP}
 }
 
 # Routing table now only has entries for hosts that are on the other router's subnet,
@@ -54,21 +60,23 @@ PORT_TO_IP = {
 # This should make it more like a real router i think?
 ROUTING_TABLE = {
     0x1A: {
-        H3_IP: 2,
-        H4_IP: 2
+        H1_IP: 2,
+        H2_IP: 2,
+        H3_IP: 1,
+        H4_IP: 1
     },
     0x1B: {
-        H1_IP: 2,
-        H2_IP: 2
+        H1_IP: 1,
+        H2_IP: 1,
+        H3_IP: 2,
+        H4_IP: 2
     }
 }
 
-
-
 ARP_TABLE = {
-    # Router 1
     ROUTER1_LEFT_IP: ROUTER1_LEFT_MAC,
-    # Router 2
+    ROUTER1_RIGHT_IP: ROUTER1_RIGHT_MAC,
+    ROUTER2_LEFT_IP: ROUTER2_LEFT_MAC,
     ROUTER2_RIGHT_IP: ROUTER2_RIGHT_MAC,
     H1_IP: H1_MAC,
     H2_IP: H2_MAC,
@@ -135,7 +143,7 @@ class SimpleSwitch(app_manager.RyuApp):
         if dpid == 0x1A:
             if ethertype == ether_types.ETH_TYPE_ARP: 
                 arp_pkt = pkt.get_protocol(arp.arp)
-                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip is ROUTER1_LEFT_IP:
+                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip == ROUTER1_LEFT_IP:
                     self.arp_reply(datapath, eth, arp_pkt, arp_pkt.dst_ip, msg.in_port)
                 return
             elif ethertype == ether_types.ETH_TYPE_IP: 
@@ -143,7 +151,11 @@ class SimpleSwitch(app_manager.RyuApp):
                 if ip_pkt and ip_pkt.dst in ROUTING_TABLE[dpid]:
                     out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
                     router_mac = ARP_TABLE[PORT_TO_IP[dpid][out_port]]
-                    dst_mac = ARP_TABLE[ip_pkt.dst]
+                    # If sending to the other router, set dst_mac to the other router's interface
+                    if out_port == 1:
+                        dst_mac = ARP_TABLE[ROUTER2_LEFT_IP]
+                    else:
+                        dst_mac = ARP_TABLE[ip_pkt.dst]
                     self.logger.info(f"[DPID {hex(dpid)}] out_port: {out_port}, router_mac: {router_mac}, dst_mac: {dst_mac}")
                     match = datapath.ofproto_parser.OFPMatch(
                         dl_type=ether_types.ETH_TYPE_IP,
@@ -161,7 +173,7 @@ class SimpleSwitch(app_manager.RyuApp):
         if dpid == 0x1B:
             if ethertype == ether_types.ETH_TYPE_ARP: 
                 arp_pkt = pkt.get_protocol(arp.arp)
-                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip is ROUTER2_RIGHT_IP:
+                if arp_pkt and arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip == ROUTER2_RIGHT_IP:
                     self.arp_reply(datapath, eth, arp_pkt, arp_pkt.dst_ip, msg.in_port)
                 return
             elif ethertype == ether_types.ETH_TYPE_IP: 
@@ -169,7 +181,11 @@ class SimpleSwitch(app_manager.RyuApp):
                 if ip_pkt and ip_pkt.dst in ROUTING_TABLE[dpid]:
                     out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
                     router_mac = ARP_TABLE[PORT_TO_IP[dpid][out_port]]
-                    dst_mac = ARP_TABLE[ip_pkt.dst]
+                    # If sending to the other router, set dst_mac to the other router's interface
+                    if out_port == 1:
+                        dst_mac = ARP_TABLE[ROUTER1_RIGHT_IP]
+                    else:
+                        dst_mac = ARP_TABLE[ip_pkt.dst]
                     self.logger.info(f"[DPID {hex(dpid)}] out_port: {out_port}, router_mac: {router_mac}, dst_mac: {dst_mac}")
                     match = datapath.ofproto_parser.OFPMatch(
                         dl_type=ether_types.ETH_TYPE_IP,
