@@ -152,6 +152,7 @@ class SimpleSwitch(app_manager.RyuApp):
                     out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
                     router_mac = ARP_TABLE[PORT_TO_IP[dpid][out_port]]
                     # If sending to the other router, set dst_mac to the other router's interface
+                    self.logger.info(f"dpid: {dpid}, ip_pkt.dst: {ip_pkt.dst}, out_port: {out_port}")
                     if out_port == 1:
                         dst_mac = ARP_TABLE[ROUTER2_LEFT_IP]
                     else:
@@ -182,6 +183,7 @@ class SimpleSwitch(app_manager.RyuApp):
                     out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
                     router_mac = ARP_TABLE[PORT_TO_IP[dpid][out_port]]
                     # If sending to the other router, set dst_mac to the other router's interface
+                    self.logger.info(f"dpid: {dpid}, ip_pkt.dst: {ip_pkt.dst}, out_port: {out_port}")
                     if out_port == 1:
                         dst_mac = ARP_TABLE[ROUTER1_RIGHT_IP]
                     else:
