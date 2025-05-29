@@ -1,26 +1,36 @@
-.pio/
-build/
-*.bin
-*.elf
-*.hex
-*.exe
-*.o
-*.obj
+# General Python
 *.pyc
 __pycache__/
-*.log
-*.swp
-*.swo
-.DS_Store
-.env
-venv/
-env/
-.idea/
+
+# VSCode
 .vscode/
-*.egg-info/
-dist/
-.eggs/
-*.coverage
-htmlcov/
-*.pkl
-*.db
+
+# Vagrant
+.vagrant/
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.exe
+
+# Packet captures and logs
+*.pcap
+*.log
+*.txt
+
+# Ignore screenshots
+*.png
+
+# Ignore all in lab5/__pycache__
+lab5/__pycache__/
+
+# Ignore all in lab4/__pycache__
+lab4/__pycache__/
