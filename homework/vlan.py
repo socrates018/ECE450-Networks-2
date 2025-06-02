@@ -29,6 +29,7 @@ from ryu.lib.packet import ethernet
 from ryu.lib.packet import arp
 from ryu.lib.packet import ipv4
 from ryu.lib.packet import ether_types
+from ryu.lib.packet import vlan
 
 # Router and host interface IPs and MACs
 # Router 1: left (192.168.1.1, 00:00:00:00:01:01)
@@ -125,6 +126,7 @@ class SimpleSwitch(app_manager.RyuApp):
 
         arp_pkt = pkt.get_protocol(arp.arp)
         ip_pkt = pkt.get_protocol(ipv4.ipv4)
+        vlan_pkt = pkt.get_protocol(vlan.vlan)
 
         self.mac_to_port.setdefault(dpid, {})
 
@@ -216,6 +218,54 @@ class SimpleSwitch(app_manager.RyuApp):
                 self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, actions, out_port)
                 self.add_flow(datapath, match, actions)
                 return
+        if dpid == 0x2:
+            if msg.in_port == 4:
+                self.logger.info(f"[DPID {hex(dpid)}] Packet received on port 4")
+                match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
+                actions = [datapath.ofproto_parser.OFPActionOutput(1),
+                           datapath.ofproto_parser.OFPActionVlanid(200)]
+            elif msg.in_port == 1:
+                self.logger.info(f"[DPID {hex(dpid)}] Packet received on port 1 with VLANID {vlan_pkt.vid}")
+                match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_vlan=vlan_pkt.vid)
+                if vlan_pkt.vid == 200:
+                    actions = [datapath.ofproto_parser.OFPActionOutput(4),
+                           datapath.ofproto_parser.OFPActionStripVlan()]
+                else:   
+                    if dst in self.mac_to_port[dpid]:
+                        out_port = self.mac_to_port[dpid][dst]
+                    else:
+                        out_port = ofproto.OFPP_FLOOD
+                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
+                               datapath.ofproto_parser.OFPActionStripVlan()]
+            else:
+                match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
+                if dst in self.mac_to_port[dpid]:
+                    out_port = self.mac_to_port[dpid][dst]
+                if out_port == 1: # karfwta?
+                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
+                            datapath.ofproto_parser.OFPActionVlanid(100)]
+                else:
+                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+                if dst in self.mac_to_port[dpid]:
+                    out_port = self.mac_to_port[dpid][dst]
+
+            data = None
+            if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+                data = msg.data
+
+            out = datapath.ofproto_parser.OFPPacketOut(
+                datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
+                actions=actions, data=data)
+            datapath.send_msg(out)
+            self.add_flow(datapath, match, actions)
+            return
+        
+        if dpid == 0x3:
+            # Future implementation for dpid 0x3
+            return
+        
+        self.logger.info(f"[DPID {hex(dpid)}] {msg.in_port} -> {out_port}, "
+                        f"{src} -> {dst}, VLANID {vlan_pkt.vid if vlan_pkt else 'None'}")
                  
         if dst in self.mac_to_port[dpid]:
             out_port = self.mac_to_port[dpid][dst]
