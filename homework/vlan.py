@@ -225,12 +225,12 @@ class SimpleSwitch(app_manager.RyuApp):
                 actions = [datapath.ofproto_parser.OFPActionOutput(1),
                            datapath.ofproto_parser.OFPActionVlanid(200)]
             elif msg.in_port == 1:
-                self.logger.info(f"[DPID {hex(dpid)}] Packet received on port 1 with VLANID {vlan_pkt.vid}")
+                self.logger.info(f"[DPID {hex(dpid)}] Packet received on trunk port with VLANID {vlan_pkt.vid}")
                 match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_vlan=vlan_pkt.vid)
                 if vlan_pkt.vid == 200:
                     actions = [datapath.ofproto_parser.OFPActionOutput(4),
                            datapath.ofproto_parser.OFPActionStripVlan()]
-                else:   
+                elif vlan_pkt.vid == 100: # trunk port only for VLAN?
                     if dst in self.mac_to_port[dpid]:
                         out_port = self.mac_to_port[dpid][dst]
                     else:
@@ -238,16 +238,17 @@ class SimpleSwitch(app_manager.RyuApp):
                     actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
                                datapath.ofproto_parser.OFPActionStripVlan()]
             else:
-                match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
                 if dst in self.mac_to_port[dpid]:
                     out_port = self.mac_to_port[dpid][dst]
+                else:
+                    out_port = ofproto.OFPP_FLOOD
                 if out_port == 1: # karfwta?
+                    match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_vlan=vlan_pkt.vid)
                     actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
                             datapath.ofproto_parser.OFPActionVlanid(100)]
                 else:
+                    match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
                     actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                if dst in self.mac_to_port[dpid]:
-                    out_port = self.mac_to_port[dpid][dst]
 
             data = None
             if msg.buffer_id == ofproto.OFP_NO_BUFFER:
