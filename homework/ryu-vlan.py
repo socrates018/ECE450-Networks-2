@@ -231,21 +231,45 @@ class SimpleSwitch(app_manager.RyuApp):
                     actions = [datapath.ofproto_parser.OFPActionOutput(4),
                            datapath.ofproto_parser.OFPActionStripVlan()]
                 elif vlan_pkt.vid == 100: # trunk port only for VLAN?
-                    if dst in self.mac_to_port[dpid]:
-                        out_port = self.mac_to_port[dpid][dst]
-                    else:
-                        out_port = ofproto.OFPP_FLOOD
+                    out_port = self.mac_to_port[dpid].get(dst)
+                    if out_port == 2 or out_port == 3:
+                        actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
+                                   datapath.ofproto_parser.OFPActionStripVlan()]
+                    elif out_port is None:
+                        actions = [
+                            datapath.ofproto_parser.OFPActionOutput(2),
+                            datapath.ofproto_parser.OFPActionOutput(3),
+                            datapath.ofproto_parser.OFPActionStripVlan()
+                        ]
+            else: # msg.in_port is 2 or 3
+                match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_dst=haddr_to_bin(dst))
+                out_port = self.mac_to_port[dpid].get(dst)
+                if out_port is None:
+                    #need to target all except port 4 and msg.in_port
+                    actions = [ 
+                        datapath.ofproto_parser.OFPActionOutput(1),
+                        datapath.ofproto_parser.OFPActionOutput(2),
+                        datapath.ofproto_parser.OFPActionOutput(3),
+                        datapath.ofproto_parser.OFPActionVlanid(100)
+                    ]
+                elif out_port == 1: 
+                    #actions need dl_dst ??
                     actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
-                               datapath.ofproto_parser.OFPActionStripVlan()]
-            else:
+                               datapath.ofproto_parser.OFPActionVlanid(100)]
+                elif out_port != 4: #2 or 3
+                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
+                                dl_dst=hadd_to_bin(dst)]
+
                 if dst in self.mac_to_port[dpid]:
                     out_port = self.mac_to_port[dpid][dst]
                 else:
                     out_port = ofproto.OFPP_FLOOD
                 if out_port == 1: # karfwta?
                     match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_vlan=vlan_pkt.vid)
-                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
-                            datapath.ofproto_parser.OFPActionVlanid(100)]
+                    actions = [
+                        datapath.ofproto_parser.OFPActionOutput(out_port),
+                        datapath.ofproto_parser.OFPActionVlanid(100)
+                    ]
                 else:
                     match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
                     actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
