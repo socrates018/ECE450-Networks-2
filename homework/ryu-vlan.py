@@ -110,6 +110,23 @@ class SimpleSwitch(app_manager.RyuApp):
         )
         datapath.send_msg(out)
 
+    def L2_send(self, datapath, in_port, actions, msg=None):
+        """Send a packet out with given actions (L2 forwarding), handling buffer_id/data logic."""
+        ofproto = datapath.ofproto
+        buffer_id = msg.buffer_id if msg else ofproto.OFP_NO_BUFFER
+        if msg and buffer_id == ofproto.OFP_NO_BUFFER:
+            data = msg.data
+        else:
+            data = None
+        out = datapath.ofproto_parser.OFPPacketOut(
+            datapath=datapath,
+            buffer_id=buffer_id,
+            in_port=in_port,
+            actions=actions,
+            data=data
+        )
+        datapath.send_msg(out)
+
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         msg = ev.msg
@@ -220,7 +237,6 @@ class SimpleSwitch(app_manager.RyuApp):
                 return
         if dpid == 0x2:
             if msg.in_port == 4:
-                self.logger.info(f"[DPID {hex(dpid)}] Packet received on port 4")
                 match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
                 actions = [datapath.ofproto_parser.OFPActionOutput(1),
                            datapath.ofproto_parser.OFPActionVlanid(200)]
@@ -230,7 +246,8 @@ class SimpleSwitch(app_manager.RyuApp):
                 if vlan_pkt.vid == 200:
                     actions = [datapath.ofproto_parser.OFPActionOutput(4),
                            datapath.ofproto_parser.OFPActionStripVlan()]
-                elif vlan_pkt.vid == 100: # trunk port only for VLAN?
+                elif vlan_pkt.vid == 100:
+                    match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_vlan=vlan_pkt.vid, dl_dst=haddr_to_bin(dst))
                     out_port = self.mac_to_port[dpid].get(dst)
                     if out_port == 2 or out_port == 3:
                         actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
@@ -243,36 +260,28 @@ class SimpleSwitch(app_manager.RyuApp):
                         ]
             else: # msg.in_port is 2 or 3
                 match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_dst=haddr_to_bin(dst))
-                out_port = self.mac_to_port[dpid].get(dst)
-                if out_port is None:
-                    #need to target all except port 4 and msg.in_port
-                    actions = [ 
-                        datapath.ofproto_parser.OFPActionOutput(1),
-                        datapath.ofproto_parser.OFPActionOutput(2),
-                        datapath.ofproto_parser.OFPActionOutput(3),
-                        datapath.ofproto_parser.OFPActionVlanid(100)
-                    ]
-                elif out_port == 1: 
-                    #actions need dl_dst ??
-                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
-                               datapath.ofproto_parser.OFPActionVlanid(100)]
-                elif out_port != 4: #2 or 3
-                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
-                                dl_dst=hadd_to_bin(dst)]
-
                 if dst in self.mac_to_port[dpid]:
                     out_port = self.mac_to_port[dpid][dst]
                 else:
                     out_port = ofproto.OFPP_FLOOD
-                if out_port == 1: # karfwta?
-                    match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_vlan=vlan_pkt.vid)
-                    actions = [
-                        datapath.ofproto_parser.OFPActionOutput(out_port),
-                        datapath.ofproto_parser.OFPActionVlanid(100)
-                    ]
+                
+                actions_flood = [datapath.ofproto_parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
+
+                actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+
+                actions_trunk= [datapath.ofproto_parser.OFPActionOutput(out_port),
+                               datapath.ofproto_parser.OFPActionVlanid(100)]
+                
+                if out_port == ofproto.OFPP_FLOOD:
+                    self.L2_send(datapath, msg.in_port, actions, msg.data)
+                elif out_port == 4:
+                    return
+                elif out_port == 1:
+                    self.add_flow(datapath, match, actions_trunk)
                 else:
-                    match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
-                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+                    self.add_flow(datapath, match, actions)
+
+                if
 
             data = None
             if msg.buffer_id == ofproto.OFP_NO_BUFFER:
