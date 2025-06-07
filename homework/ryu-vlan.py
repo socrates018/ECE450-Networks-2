@@ -111,16 +111,14 @@ class SimpleSwitch(app_manager.RyuApp):
         datapath.send_msg(out)
 
     def L2_send(self, datapath, in_port, actions, msg=None):
-        """Send a packet out with given actions (L2 forwarding), handling buffer_id/data logic."""
+        # L2 forwarding
         ofproto = datapath.ofproto
-        buffer_id = msg.buffer_id if msg else ofproto.OFP_NO_BUFFER
-        if msg and buffer_id == ofproto.OFP_NO_BUFFER:
+        data = None
+        if msg.buffer_id == ofproto.OFP_NO_BUFFER:
             data = msg.data
-        else:
-            data = None
         out = datapath.ofproto_parser.OFPPacketOut(
             datapath=datapath,
-            buffer_id=buffer_id,
+            buffer_id=msg.buffer_id,
             in_port=in_port,
             actions=actions,
             data=data
@@ -248,11 +246,14 @@ class SimpleSwitch(app_manager.RyuApp):
                            datapath.ofproto_parser.OFPActionStripVlan()]
                 elif vlan_pkt.vid == 100:
                     match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_vlan=vlan_pkt.vid, dl_dst=haddr_to_bin(dst))
-                    out_port = self.mac_to_port[dpid].get(dst)
+                    if dst in self.mac_to_port[dpid]:
+                        out_port = self.mac_to_port[dpid][dst]
+                    else:
+                        out_port = ofproto.OFPP_FLOOD
                     if out_port == 2 or out_port == 3:
                         actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
                                    datapath.ofproto_parser.OFPActionStripVlan()]
-                    elif out_port is None:
+                    elif out_port == ofproto.OFPP_FLOOD:
                         actions = [
                             datapath.ofproto_parser.OFPActionOutput(2),
                             datapath.ofproto_parser.OFPActionOutput(3),
@@ -264,33 +265,27 @@ class SimpleSwitch(app_manager.RyuApp):
                     out_port = self.mac_to_port[dpid][dst]
                 else:
                     out_port = ofproto.OFPP_FLOOD
-                
-                actions_flood = [datapath.ofproto_parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
-
-                actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
 
                 actions_trunk= [datapath.ofproto_parser.OFPActionOutput(out_port),
                                datapath.ofproto_parser.OFPActionVlanid(100)]
                 
                 if out_port == ofproto.OFPP_FLOOD:
+                    # send to all except the input port and port 4, and if port 1 add VLAN tag
+                    
+                    actions = [datapath.ofproto_parser.OFPActionOutput(2),
+                               datapath.ofproto_parser.OFPActionOutput(3)]
+
                     self.L2_send(datapath, msg.in_port, actions, msg.data)
                 elif out_port == 4:
                     return
                 elif out_port == 1:
-                    self.add_flow(datapath, match, actions_trunk)
+                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
+                                datapath.ofproto_parser.OFPActionVlanid(100)]
                 else:
-                    self.add_flow(datapath, match, actions)
+                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
 
-                if
 
-            data = None
-            if msg.buffer_id == ofproto.OFP_NO_BUFFER:
-                data = msg.data
-
-            out = datapath.ofproto_parser.OFPPacketOut(
-                datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
-                actions=actions, data=data)
-            datapath.send_msg(out)
+            self.L2_send(datapath, msg.in_port, actions, msg.data)
             self.add_flow(datapath, match, actions)
             return
         
