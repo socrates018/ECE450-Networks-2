@@ -4,11 +4,9 @@ __pycache__/
 
 # VSCode
 .vscode/
-**/.vscode/
 
 # Vagrant
 .vagrant/
-**/.vagrant/
 
 # OS generated
 .DS_Store

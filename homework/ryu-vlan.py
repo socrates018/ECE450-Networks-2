@@ -261,13 +261,13 @@ class SimpleSwitch(app_manager.RyuApp):
                             datapath.ofproto_parser.OFPActionOutput(3),
                             datapath.ofproto_parser.OFPActionStripVlan()
                         ]
-                        self.L2_send(datapath, msg.in_port, actions, msg.data)
+                        self.L2_send(datapath, msg.in_port, actions, msg)
                         return
             # Tx
             elif msg.in_port == 4:
                 match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
                 actions = [datapath.ofproto_parser.OFPActionOutput(1),
-                           datapath.ofproto_parser.OFPActionVlanid(200)]
+                           datapath.ofproto_parser.OFPActionVlanVid(200)]
 
             else: # msg.in_port is 2 or 3
                 match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_dst=haddr_to_bin(dst))
@@ -280,21 +280,21 @@ class SimpleSwitch(app_manager.RyuApp):
                     # send to all except the input port and port 4, and if port 1 add VLAN tag
 
                     actions = [datapath.ofproto_parser.OFPActionOutput(1),
-                                datapath.ofproto_parser.OFPActionVlanid(100)]
-                    self.L2_send(datapath, msg.in_port, actions, msg.data)
+                                datapath.ofproto_parser.OFPActionVlanVid(100)]
+                    self.L2_send(datapath, msg.in_port, actions, msg)
                     if msg.in_port == 2:
                         actions = [datapath.ofproto_parser.OFPActionOutput(3)]
                     else: # if msg.in_port == 3
                         actions = [datapath.ofproto_parser.OFPActionOutput(2)]
-                    self.L2_send(datapath, msg.in_port, actions, msg.data)
+                    self.L2_send(datapath, msg.in_port, actions, msg)
                     return
                 elif out_port == 1:
                     actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
-                                datapath.ofproto_parser.OFPActionVlanid(100)]
+                                datapath.ofproto_parser.OFPActionVlanVid(100)]
                 else:
                     actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
 
-            self.L2_send(datapath, msg.in_port, actions, msg.data)
+            self.L2_send(datapath, msg.in_port, actions, msg)
             self.add_flow(datapath, match, actions)
             return
         
@@ -320,13 +320,13 @@ class SimpleSwitch(app_manager.RyuApp):
                             datapath.ofproto_parser.OFPActionOutput(3),
                             datapath.ofproto_parser.OFPActionStripVlan()
                         ]
-                        self.L2_send(datapath, msg.in_port, actions, msg.data)
+                        self.L2_send(datapath, msg.in_port, actions, msg)
                         return
             # Tx
             elif msg.in_port == 4:
                 match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
                 actions = [datapath.ofproto_parser.OFPActionOutput(1),
-                           datapath.ofproto_parser.OFPActionVlanid(100)]
+                           datapath.ofproto_parser.OFPActionVlanVid(100)]
 
             else: # msg.in_port is 2 or 3
                 match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port, dl_dst=haddr_to_bin(dst))
@@ -339,21 +339,21 @@ class SimpleSwitch(app_manager.RyuApp):
                     # send to all except the input port and port 4, and if port 1 add VLAN tag
 
                     actions = [datapath.ofproto_parser.OFPActionOutput(1),
-                                datapath.ofproto_parser.OFPActionVlanid(200)]
-                    self.L2_send(datapath, msg.in_port, actions, msg.data)
+                                datapath.ofproto_parser.OFPActionVlanVid(200)]
+                    self.L2_send(datapath, msg.in_port, actions, msg)
                     if msg.in_port == 2:
                         actions = [datapath.ofproto_parser.OFPActionOutput(3)]
                     else: # if msg.in_port == 3
                         actions = [datapath.ofproto_parser.OFPActionOutput(2)]
-                    self.L2_send(datapath, msg.in_port, actions, msg.data)
+                    self.L2_send(datapath, msg.in_port, actions, msg)
                     return
                 elif out_port == 1:
                     actions = [datapath.ofproto_parser.OFPActionOutput(out_port),
-                                datapath.ofproto_parser.OFPActionVlanid(200)]
+                                datapath.ofproto_parser.OFPActionVlanVid(200)]
                 else:
                     actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
 
-            self.L2_send(datapath, msg.in_port, actions, msg.data)
+            self.L2_send(datapath, msg.in_port, actions, msg)
             self.add_flow(datapath, match, actions)
             return
         
