@@ -29,6 +29,7 @@ from ryu.lib.packet import ethernet
 from ryu.lib.packet import arp
 from ryu.lib.packet import ipv4
 from ryu.lib.packet import ether_types
+from ryu.lib.packet import udp
 
 # Router and host interface IPs and MACs
 # Router 1: left (192.168.1.1, 00:00:00:00:01:01)
@@ -96,6 +97,8 @@ class SimpleSwitch(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(SimpleSwitch, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
+        # NAT table: maps (internal_ip, internal_port) -> (external_ip, external_port)
+        self.nat_table = {}
 
     def add_flow(self, datapath, match, actions):
         ofproto = datapath.ofproto
@@ -134,6 +137,7 @@ class SimpleSwitch(app_manager.RyuApp):
 
         arp_pkt = pkt.get_protocol(arp.arp)
         ip_pkt = pkt.get_protocol(ipv4.ipv4)
+        udp_pkt = pkt.get_protocol(udp.udp)
 
         self.mac_to_port.setdefault(dpid, {})
 
@@ -156,13 +160,31 @@ class SimpleSwitch(app_manager.RyuApp):
                 #     
                 
                 if out_port == 3:
+                    if not udp_pkt:
+                        self.logger.info("[0x1A] Non-UDP packet on port 3, dropping")
+                        return
                     router_mac = ROUTER1_TOP_MAC
                     dst_mac = H5_MAC
                     match = datapath.ofproto_parser.OFPMatch(
                         dl_type=ether_types.ETH_TYPE_IP,
+                        nw_proto=17,  # UDP protocol number
                         nw_dst=200.0.0.0,
                         nw_dst_mask=24
                     )
+                    
+                    # Save NAT mapping: (src_ip, src_port) -> (ROUTER1_TOP_IP, src_port)
+                    nat_key = (ip_pkt.src, udp_pkt.src_port)
+                    nat_val = (ROUTER1_TOP_IP, udp_pkt.src_port)
+                    self.nat_table[nat_key] = nat_val
+                    self.logger.info(f"NAT table updated: {nat_key} -> {nat_val}")
+
+                    actions = [
+                        datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
+                        datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
+                        datapath.ofproto_parser.OFPActionOutput(out_port),
+                        datapath.ofproto_parser.OFPActionSetNwSrc(ROUTER1_TOP_IP),
+                        datapath.ofproto_parser.OFPActionSetTpSrc(12345)
+                    ]
                 elif(out_port == 1):
                     router_mac = ROUTER1_RIGHT_MAC
                     dst_mac = ROUTER2_LEFT_MAC
@@ -178,6 +200,7 @@ class SimpleSwitch(app_manager.RyuApp):
                         dl_type=ether_types.ETH_TYPE_IP,
                         nw_dst=ip_pkt.dst
                     )
+
 
                 self.logger.info(f"[DPID {hex(dpid)}] {msg.in_port} -> {out_port}, "
                                  f"{router_mac} -> {dst_mac}, "
