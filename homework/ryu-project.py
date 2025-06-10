@@ -31,7 +31,7 @@ from ryu.lib.packet import arp
 from ryu.lib.packet import ipv4
 from ryu.lib.packet import ether_types
 from ryu.lib.packet import udp
-import random
+from ryu.lib.packet import vlan
 
 # Router and host interface IPs and MACs
 # Router 1: left (192.168.1.1, 00:00:00:00:01:01)
@@ -93,6 +93,12 @@ ROUTER1_SUBNET = "192.168.1.0"
 ROUTER2_SUBNET = "192.168.2.0"
 ROUTER1_TOP_SUBNET = "200.0.0.0"
 
+# VLANID mapping for switches: for dpid 0x2, identity; for dpid 0x3, swap 100<->200
+VLANID = {
+    0x2: {100: 100, 200: 200},
+    0x3: {100: 200, 200: 100}
+}
+
 nat = {}
 reverse_nat = {}
 next_port = 12345
@@ -149,6 +155,21 @@ class SimpleSwitch(app_manager.RyuApp):
         )
         datapath.send_msg(out)
 
+    def L2_send(self, datapath, in_port, actions, msg=None):
+        # L2 forwarding
+        ofproto = datapath.ofproto
+        data = None
+        if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+            data = msg.data
+        out = datapath.ofproto_parser.OFPPacketOut(
+            datapath=datapath,
+            buffer_id=msg.buffer_id,
+            in_port=in_port,
+            actions=actions,
+            data=data
+        )
+        datapath.send_msg(out)
+
     def add_nat(self, internal_ip, internal_port):
         global next_port
         key = (internal_ip, internal_port)
@@ -185,6 +206,7 @@ class SimpleSwitch(app_manager.RyuApp):
         arp_pkt = pkt.get_protocol(arp.arp)
         ip_pkt = pkt.get_protocol(ipv4.ipv4)
         udp_pkt = pkt.get_protocol(udp.udp)
+        vlan_pkt = pkt.get_protocol(vlan.vlan)
 
         self.mac_to_port.setdefault(dpid, {})
 
@@ -335,29 +357,94 @@ class SimpleSwitch(app_manager.RyuApp):
                 self.add_flow(datapath, match, actions)
                 return
                  
-        if dst in self.mac_to_port[dpid]:
-            out_port = self.mac_to_port[dpid][dst]
-        else:
-            out_port = ofproto.OFPP_FLOOD
+        #logic for both switches is exactly the same, only VLANID's must be swapped so I use a dictionary and fuse the switch logic
+        if dpid == 0x2 or dpid == 0x3:
+            # Rx (from trunk port)
+            if msg.in_port == 1:
+                if vlan_pkt is None:
+                    self.logger.warning(f"Untagged packet received on trunk port (dpid {dpid}), dropping.")
+                    return
+                match = datapath.ofproto_parser.OFPMatch(
+                    in_port=msg.in_port,
+                    dl_vlan=vlan_pkt.vid
+                )
+                if vlan_pkt.vid == VLANID[dpid][200]:
+                    actions = [
+                        datapath.ofproto_parser.OFPActionStripVlan(),
+                        datapath.ofproto_parser.OFPActionOutput(4)
+                    ]
+                elif vlan_pkt.vid == VLANID[dpid][100]:
+                    match = datapath.ofproto_parser.OFPMatch(
+                        in_port=msg.in_port,
+                        dl_vlan=vlan_pkt.vid,
+                        dl_dst=haddr_to_bin(dst)
+                    )
+                    if dst in self.mac_to_port[dpid]:
+                        out_port = self.mac_to_port[dpid][dst]
+                    else:
+                        out_port = ofproto.OFPP_FLOOD
 
-        match = datapath.ofproto_parser.OFPMatch(
-            in_port=msg.in_port, dl_dst=haddr_to_bin(dst))
+                    if out_port == 2 or out_port == 3:
+                        actions = [
+                            datapath.ofproto_parser.OFPActionStripVlan(),
+                            datapath.ofproto_parser.OFPActionOutput(out_port)
+                        ]
+                    elif out_port == ofproto.OFPP_FLOOD or out_port == 4:
+                        actions = [
+                            datapath.ofproto_parser.OFPActionStripVlan(),
+                            datapath.ofproto_parser.OFPActionOutput(2),
+                            datapath.ofproto_parser.OFPActionOutput(3)
+                        ]
+                        self.L2_send(datapath, msg.in_port, actions, msg)
+                        return
+            # Tx (to trunk port)
+            elif msg.in_port == 4:
+                match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
+                actions = [
+                    datapath.ofproto_parser.OFPActionVlanVid(VLANID[dpid][200]),
+                    datapath.ofproto_parser.OFPActionOutput(1)
+                ]
+            # Access ports (2 or 3)
+            else:  # msg.in_port is 2 or 3
+                match = datapath.ofproto_parser.OFPMatch(
+                    in_port=msg.in_port,
+                    dl_dst=haddr_to_bin(dst)
+                )
+                if dst in self.mac_to_port[dpid]:
+                    out_port = self.mac_to_port[dpid][dst]
+                else:
+                    out_port = ofproto.OFPP_FLOOD
 
-        actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+                if out_port == ofproto.OFPP_FLOOD or out_port == 4:
+                    # actions list are executed in order...
+                    if msg.in_port == 2:
+                        actions = [
+                            datapath.ofproto_parser.OFPActionOutput(3),
+                            datapath.ofproto_parser.OFPActionVlanVid(VLANID[dpid][100]),
+                            datapath.ofproto_parser.OFPActionOutput(1)
+                        ]
+                    else:  # if msg.in_port == 3
+                        actions = [
+                            datapath.ofproto_parser.OFPActionOutput(2),
+                            datapath.ofproto_parser.OFPActionVlanVid(VLANID[dpid][100]),
+                            datapath.ofproto_parser.OFPActionOutput(1)
+                        ]
+                    self.L2_send(datapath, msg.in_port, actions, msg)
+                    return
+                elif out_port == 1:
+                    actions = [
+                        datapath.ofproto_parser.OFPActionVlanVid(VLANID[dpid][100]),
+                        datapath.ofproto_parser.OFPActionOutput(out_port)
+                    ]
+                else:
+                    actions = [
+                        datapath.ofproto_parser.OFPActionOutput(out_port)
+                    ]
 
-        # install a flow to avoid packet_in next time
-        if out_port != ofproto.OFPP_FLOOD:
+            self.L2_send(datapath, msg.in_port, actions, msg)
             self.add_flow(datapath, match, actions)
-
-        data = None
-        if msg.buffer_id == ofproto.OFP_NO_BUFFER:
-            data = msg.data
-
-        out = datapath.ofproto_parser.OFPPacketOut(
-            datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
-            actions=actions, data=data)
-        datapath.send_msg(out)
-
+            return
+        
     def arp_reply(self, datapath, eth, arp_pkt, in_port):
         if arp_pkt.opcode is not arp.ARP_REQUEST:
             self.logger.info("Received non-ARP request packet: %s", arp_pkt)
