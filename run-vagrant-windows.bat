@@ -34,14 +34,15 @@ if "%1"=="" (
 )
 if %CALL_COUNT% LSS 3 (
     set /a NEXT_CALL_COUNT=CALL_COUNT+1
+    timeout /t 5 >nul
     start "Vagrant SSH" cmd /c "%SCRIPT_PATH%" !NEXT_CALL_COUNT!
 )
 
-vagrant ssh -- -t "cd /vagrant; exec bash -l"
+vagrant ssh -- -X -t "cd /vagrant; exec bash -l"
 goto AfterSSH
 
 :_ssh
-vagrant ssh -- -t "cd /vagrant; exec bash -l"
+vagrant ssh -- -X -t "cd /vagrant; exec bash -l"
 goto :eof
 
 :AfterSSH
@@ -53,7 +54,7 @@ if errorlevel 3 (
     exit
 ) else if errorlevel 2 (
     echo Reopening SSH session...
-    vagrant ssh -- -t "cd /vagrant; exec bash -l"
+    vagrant ssh -- -X -t "cd /vagrant; exec bash -l"
     goto AfterSSH
 ) else if errorlevel 1 (
     echo Shutting down Vagrant VM...
@@ -94,15 +95,12 @@ if errorlevel 4 (
 )
 if errorlevel 3 (
     echo Reopening SSH session...
-    vagrant ssh -- -t "cd /vagrant; exec bash -l"
+    vagrant ssh -- -X -t "cd /vagrant; exec bash -l"
     goto AfterSSH
 )
 if errorlevel 2 (
     echo Running 'vagrant reload'...
     echo Vagrant up failed.
-    :: Kill all VirtualBox tasks before error handler
-    taskkill /F /IM VBoxHeadless.exe >nul 2>&1
-    taskkill /F /IM VirtualBoxVM.exe >nul 2>&1
     vagrant reload
     if errorlevel 1 (
         echo 'vagrant reload' failed.
