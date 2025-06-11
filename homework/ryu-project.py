@@ -225,46 +225,14 @@ class SimpleSwitch(app_manager.RyuApp):
                     self.arp_reply(datapath, eth, arp_pkt, msg.in_port)
                 return
             elif ethertype == ether_types.ETH_TYPE_IP:
-                if ip_pkt.dst == ROUTER1_TOP_IP and msg.in_port == 3:
-                    if not udp_pkt:
-                        self.logger.info("[0x1A] Non-UDP packet, dropping")
-                        return
-                    # Reverse NAT: use lookup_external to find mapping
-                    internal = self.lookup_external(ip_pkt.dst, udp_pkt.dst_port)
-                    if internal:
-                        internal_ip, internal_port = internal
-                        self.logger.info(f"Reverse NAT: ({ip_pkt.dst}, {udp_pkt.dst_port}) -> ({internal_ip}, {internal_port})")
-                        out_port = ROUTING_TABLE[dpid][internal_ip]
-                        if out_port == 1:
-                            router_mac = ROUTER1_RIGHT_MAC
-                        elif out_port == 2:
-                            router_mac = ROUTER1_LEFT_MAC
-                     
-                        dst_mac = ARP_TABLE[internal_ip]
-                        match = datapath.ofproto_parser.OFPMatch(
-                            dl_type=ether_types.ETH_TYPE_IP,
-                            nw_proto=17,
-                            nw_src=ip_pkt.src,
-                            nw_dst=ip_pkt.dst, #or ROUTER1_TOP_IP,
-                            tp_dst=udp_pkt.dst_port
-                        )
-                        actions = [
-                            datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
-                            datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
-                            datapath.ofproto_parser.OFPActionSetNwDst(internal_ip),
-                            datapath.ofproto_parser.OFPActionSetTpDst(internal_port),
-                            datapath.ofproto_parser.OFPActionOutput(out_port)
-                        ]
-                        self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, actions, out_port)
-                        self.add_flow(datapath, match, actions)
-                        return
-                    else:
-                        self.logger.info(f"No reverse NAT mapping found for {(ip_pkt.dst, udp_pkt.dst_port)}, dropping packet")
-                        return
-                    
+                
+                if ip_pkt.dst == ROUTER1_TOP_IP:
+                    return
+
                 out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
 
                 if out_port == 3:
+                    print(f"[DEBUG] out_port=3: src_ip={ip_pkt.src}, dst_ip={ip_pkt.dst}, src_mac={src}, dst_mac={dst}, udp_src_port={udp_pkt.src_port if udp_pkt else 'N/A'}, udp_dst_port={udp_pkt.dst_port if udp_pkt else 'N/A'}")
                     if not udp_pkt:
                         self.logger.info("[0x1A] Non-UDP packet on port 3, dropping")
                         return
@@ -278,14 +246,49 @@ class SimpleSwitch(app_manager.RyuApp):
                         nw_src=ip_pkt.src,
                     )
                     # Use add_nat to get (external_ip, external_port)
-                    external_ip, external_port = self.add_nat(ip_pkt.src, udp_pkt.src_port)
-                    self.logger.info(f"NAT table updated: ({ip_pkt.src}, {udp_pkt.src_port}) -> ({external_ip}, {external_port})")
+                    external_ip, new_src_port = self.add_nat(ip_pkt.src, udp_pkt.src_port)
+                    self.logger.info(f"NAT table updated: ({ip_pkt.src}, {udp_pkt.src_port}) -> ({external_ip}, {new_src_port})")
 
                     actions = [
                         datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
                         datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
                         datapath.ofproto_parser.OFPActionSetNwSrc(external_ip),
-                        datapath.ofproto_parser.OFPActionSetTpSrc(external_port),
+                        datapath.ofproto_parser.OFPActionSetTpSrc(new_src_port),
+                        datapath.ofproto_parser.OFPActionOutput(out_port)
+                    ]
+
+                    self.modify_and_send_ip_packet(datapath, msg.in_port, pkt, actions, out_port)
+                    self.add_flow(datapath, match, actions)
+                    
+                    #now add the reverse NAT entry flow
+                    internal = self.lookup_external(external_ip, new_src_port)
+                    if internal:
+                        internal_ip, internal_port = internal
+                        self.logger.info(f"Reverse NAT: ({external_ip}, {new_src_port}) -> ({internal_ip}, {internal_port})")
+                    else:
+                        self.logger.info(f"No reverse NAT mapping found for {(internal_ip, internal_port)}, dropping packet")
+                        return
+
+                    out_port = ROUTING_TABLE[dpid][internal_ip]
+                    if out_port == 1:
+                        router_mac = ROUTER1_RIGHT_MAC
+                    elif out_port == 2:
+                        router_mac = ROUTER1_LEFT_MAC
+                    
+                    dst_mac = ARP_TABLE[internal_ip]
+
+                    match = datapath.ofproto_parser.OFPMatch(
+                            dl_type=ether_types.ETH_TYPE_IP,
+                            nw_proto=17,
+                            nw_src=ip_pkt.dst,
+                            nw_dst=ROUTER1_TOP_IP,
+                            tp_dst=new_src_port
+                        )
+                    actions = [
+                        datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
+                        datapath.ofproto_parser.OFPActionSetDlDst(dst_mac),
+                        datapath.ofproto_parser.OFPActionSetNwDst(internal_ip),
+                        datapath.ofproto_parser.OFPActionSetTpDst(internal_port),
                         datapath.ofproto_parser.OFPActionOutput(out_port)
                     ]
 
