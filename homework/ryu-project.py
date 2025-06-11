@@ -226,6 +226,7 @@ class SimpleSwitch(app_manager.RyuApp):
                 return
             elif ethertype == ether_types.ETH_TYPE_IP:
                 
+                #do not receive reversed nat packets (flow is added together with outbound nat)
                 if ip_pkt.dst == ROUTER1_TOP_IP:
                     return
 
@@ -240,10 +241,12 @@ class SimpleSwitch(app_manager.RyuApp):
                     dst_mac = H5_MAC
                     match = datapath.ofproto_parser.OFPMatch(
                         dl_type=ether_types.ETH_TYPE_IP,
-                        nw_proto=17,  # UDP protocol number
+                        nw_proto=17,
                         nw_dst=ROUTER1_TOP_SUBNET,
                         nw_dst_mask=24,
                         nw_src=ip_pkt.src,
+                        tp_src=udp_pkt.src_port, #match all ports to avoid conflicts
+                        # tp_dst=udp_pkt.dst_port #maybe not needed, src port is random
                     )
                     # Use add_nat to get (external_ip, external_port)
                     external_ip, new_src_port = self.add_nat(ip_pkt.src, udp_pkt.src_port)
@@ -281,8 +284,8 @@ class SimpleSwitch(app_manager.RyuApp):
                             dl_type=ether_types.ETH_TYPE_IP,
                             nw_proto=17,
                             nw_src=ip_pkt.dst,
-                            nw_dst=ROUTER1_TOP_IP,
-                            tp_dst=new_src_port
+                            nw_dst=ROUTER1_TOP_IP, #of course specifix ip
+                            tp_dst=new_src_port # match on the outer stuff
                         )
                     actions = [
                         datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
