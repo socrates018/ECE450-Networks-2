@@ -246,7 +246,7 @@ class SimpleSwitch(app_manager.RyuApp):
                         nw_dst_mask=24,
                         nw_src=ip_pkt.src,
                         tp_src=udp_pkt.src_port, #match all ports to avoid conflicts
-                        # tp_dst=udp_pkt.dst_port #maybe not needed, src port is random
+                        tp_dst=udp_pkt.dst_port #maybe not needed, src port is random
                     )
                     # Use add_nat to get (external_ip, external_port)
                     external_ip, new_src_port = self.add_nat(ip_pkt.src, udp_pkt.src_port)
