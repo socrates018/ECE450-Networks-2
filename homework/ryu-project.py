@@ -365,6 +365,7 @@ class SimpleSwitch(app_manager.RyuApp):
                  
         #logic for both switches is exactly the same, only VLANID's must be swapped so I use a dictionary for vlanids and fuse the switch logic
         if dpid == 0x2 or dpid == 0x3:
+            flood_flag = False
             # Rx (from trunk port)
             if msg.in_port == 1:
                 if vlan_pkt is None:
@@ -382,8 +383,7 @@ class SimpleSwitch(app_manager.RyuApp):
                     #on another switch except if we know our host mac addresses in advance
                     #but that is the whole reason for the flooding
                     #or if we use a global variable to check if we are flooding like this:
-                    global flooding_to_neighbor
-                    flooding_to_neighbor = True
+                    flood_flag = True
                     out_port = 4
                     actions = [
                         datapath.ofproto_parser.OFPActionStripVlan(),
@@ -406,14 +406,13 @@ class SimpleSwitch(app_manager.RyuApp):
                             datapath.ofproto_parser.OFPActionOutput(out_port)
                         ]
                     elif out_port == ofproto.OFPP_FLOOD or out_port == 4:
+                        flood_flag = True
                         self.logger.info(f"[DPID {hex(dpid)}] Flooding packet from trunk port (VLAN {vlan_pkt.vid})")
                         actions = [
                             datapath.ofproto_parser.OFPActionStripVlan(),
                             datapath.ofproto_parser.OFPActionOutput(2),
                             datapath.ofproto_parser.OFPActionOutput(3)
                         ]
-                        self.L2_send(datapath, msg.in_port, actions, msg)
-                        return
             # Tx (to trunk port)
             elif msg.in_port == 4:
                 out_port = 1
@@ -434,6 +433,7 @@ class SimpleSwitch(app_manager.RyuApp):
                     out_port = ofproto.OFPP_FLOOD
 
                 if out_port == ofproto.OFPP_FLOOD or out_port == 4:
+                    flood_flag = True
                     self.logger.info(f"[DPID {hex(dpid)}] Flooding packet from access port {msg.in_port}")
                     # actions list are executed in order...
                     if msg.in_port == 2:
@@ -448,8 +448,6 @@ class SimpleSwitch(app_manager.RyuApp):
                             datapath.ofproto_parser.OFPActionVlanVid(VLANID[dpid][100]),
                             datapath.ofproto_parser.OFPActionOutput(1)
                         ]
-                    self.L2_send(datapath, msg.in_port, actions, msg)
-                    return
                 elif out_port == 1:
                     self.logger.info(f"[DPID {hex(dpid)}] Sending packet to trunk port (from access port {msg.in_port})")
                     actions = [
@@ -467,8 +465,8 @@ class SimpleSwitch(app_manager.RyuApp):
             self.L2_send(datapath, msg.in_port, actions, msg)
 
             #if flooding to neighbor on same vlan but other switch do not add a flow
-            if flooding_to_neighbor:
-                flooding_to_neighbor = False
+            if flood_flag:
+                flood_flag = False
             else:
                 self.add_flow(datapath, match, actions)
             return
