@@ -1,18 +1,16 @@
 # General Python
 *.pyc
-__pycache__/
 **/__pycache__/
 
 # VSCode
-.vscode/
 **/.vscode/
 
 # Vagrant
-.vagrant/
+**/.vagrant/
 
 # OS generated
-.DS_Store
-Thumbs.db
+**/.DS_Store
+**/Thumbs.db
 
 # Build artifacts
 build/
@@ -24,5 +22,5 @@ build/
 *.exe
 
 # Packet captures and logs
-*.pcap
-*.log
+**/*.pcap
+**/*.log
