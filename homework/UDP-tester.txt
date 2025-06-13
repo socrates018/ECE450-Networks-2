@@ -1,0 +1,21 @@
+h5 nc -lu 12345 &
+h1 echo "hello" | nc -u 200.0.0.2 12345
+h1 nc -lu 12345 &
+h5 echo "hello-back" | nc -u 192.168.1.2 12345
+iperf3 -c 192.168.1.100 -u -b 100M -t 10 -i 1
+# Server (200.0.0.2) runs:
+iperf3 -s -u
+
+# Client runs (forces server to send traffic):
+iperf3 -c 200.0.0.2 -u -b 100M -t 10 --reverse
+
+ovs-ofctl dump-flows s1
+
+#server
+h5 iperf -s -u &
+
+#for ALOT of packets
+h1 iperf -c h5 -u -b 10M -t 10
+
+#for 2-3 packets
+h1 iperf -c h5 -u -b 10K -l 1470 -t 0.1

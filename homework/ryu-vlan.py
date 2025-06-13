@@ -44,25 +44,27 @@ ROUTER2_RIGHT_IP = "192.168.2.1"
 ROUTER2_RIGHT_MAC = "00:00:00:00:02:01"
 H1_IP = "192.168.1.2"
 H1_MAC = "00:00:00:00:01:02"
-H2_IP = "192.168.1.3"
-H2_MAC = "00:00:00:00:01:03"
-H3_IP = "192.168.2.2"
-H3_MAC = "00:00:00:00:02:02"
-H4_IP = "192.168.2.3"
-H4_MAC = "00:00:00:00:02:03"
+H2_IP = "192.168.2.2"
+H2_MAC = "00:00:00:00:02:02"
+H3_IP = "192.168.2.3"
+H3_MAC = "00:00:00:00:02:03"
+H4_IP = "192.168.1.3"
+H4_MAC = "00:00:00:00:01:03"
 
+
+# need to use vlan subnet ports (right colors)
 ROUTING_TABLE = {
     0x1A: {
         H1_IP: 2,
-        H2_IP: 2,
+        H2_IP: 1,
         H3_IP: 1,
-        H4_IP: 1
+        H4_IP: 2
     },
     0x1B: {
         H1_IP: 1,
-        H2_IP: 1,
+        H2_IP: 2,
         H3_IP: 2,
-        H4_IP: 2
+        H4_IP: 1
     }
 }
 
@@ -78,9 +80,7 @@ ARP_TABLE = {
 }
 
 ROUTER1_SUBNET = "192.168.1.0"
-ROUTER1_SUBNET_MASK = 24
 ROUTER2_SUBNET = "192.168.2.0"
-ROUTER2_SUBNET_MASK = 24
 
 # VLANID mapping for switches: for dpid 0x2, identity; for dpid 0x3, swap 100<->200
 VLANID = {
@@ -164,17 +164,13 @@ class SimpleSwitch(app_manager.RyuApp):
             elif ethertype == ether_types.ETH_TYPE_IP:
                 out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
 
-                # if out_port == ROUTING_TABLE[dpid][ip_pkt.src]:
-                #     self.logger.info("[0x1A] Same subnet, drop")
-                #     return
-
                 if(out_port == 1):
                     router_mac = ROUTER1_RIGHT_MAC
                     dst_mac = ROUTER2_LEFT_MAC
                     match = datapath.ofproto_parser.OFPMatch(
                         dl_type=ether_types.ETH_TYPE_IP,
                         nw_dst=ROUTER2_SUBNET,
-                        nw_dst_mask=ROUTER2_SUBNET_MASK
+                        nw_dst_mask=24
                     )
                 else:
                     router_mac = ROUTER1_LEFT_MAC
@@ -205,17 +201,13 @@ class SimpleSwitch(app_manager.RyuApp):
             elif ethertype == ether_types.ETH_TYPE_IP:
                 out_port = ROUTING_TABLE[dpid][ip_pkt.dst]
 
-                # if out_port == ROUTING_TABLE[dpid][ip_pkt.src]:
-                #     self.logger.info("[0x1B] Same subnet, drop")
-                #     return
-
                 if(out_port == 1):
                     router_mac = ROUTER2_LEFT_MAC
                     dst_mac = ROUTER1_RIGHT_MAC
                     match = datapath.ofproto_parser.OFPMatch(
                         dl_type=ether_types.ETH_TYPE_IP,
                         nw_dst=ROUTER1_SUBNET,
-                        nw_dst_mask=ROUTER1_SUBNET_MASK
+                        nw_dst_mask=24
                     )
                 else:
                     router_mac = ROUTER2_RIGHT_MAC
@@ -224,10 +216,6 @@ class SimpleSwitch(app_manager.RyuApp):
                         dl_type=ether_types.ETH_TYPE_IP,
                         nw_dst=ip_pkt.dst
                     )
-
-                self.logger.info(f"[DPID {hex(dpid)}] {msg.in_port} -> {out_port}, "
-                                 f"{router_mac} -> {dst_mac}, "
-                                 f"{ip_pkt.src} -> {ip_pkt.dst}")
 
                 actions = [
                     datapath.ofproto_parser.OFPActionSetDlSrc(router_mac),
@@ -239,21 +227,27 @@ class SimpleSwitch(app_manager.RyuApp):
                 self.add_flow(datapath, match, actions)
                 return
             
-        #logic for both switches is exactly the same, only VLANID's must be swapped so I use a dictionary and fuse the switch logic
+        #logic for both switches is exactly the same, only VLANID's must be swapped so I use a dictionary for vlanids and fuse the switch logic
         if dpid == 0x2 or dpid == 0x3:
             # Rx (from trunk port)
             if msg.in_port == 1:
                 if vlan_pkt is None:
                     self.logger.warning(f"Untagged packet received on trunk port (dpid {dpid}), dropping.")
                     return
+                self.logger.info(f"[DPID {hex(dpid)}] Received packet on trunk port (VLAN {vlan_pkt.vid})")
                 match = datapath.ofproto_parser.OFPMatch(
                     in_port=msg.in_port,
                     dl_vlan=vlan_pkt.vid
                 )
                 if vlan_pkt.vid == VLANID[dpid][200]:
+                    #hm this flow will be added even in flooding situations (early)
+                    #there is no way to differentiate flooding from normal traffic
+                    #on another switch except if we know our host mac addresses in advance
+                    #but that is the whole reason for the flooding
+                    out_port = 4
                     actions = [
                         datapath.ofproto_parser.OFPActionStripVlan(),
-                        datapath.ofproto_parser.OFPActionOutput(4)
+                        datapath.ofproto_parser.OFPActionOutput(out_port)
                     ]
                 elif vlan_pkt.vid == VLANID[dpid][100]:
                     match = datapath.ofproto_parser.OFPMatch(
@@ -272,6 +266,7 @@ class SimpleSwitch(app_manager.RyuApp):
                             datapath.ofproto_parser.OFPActionOutput(out_port)
                         ]
                     elif out_port == ofproto.OFPP_FLOOD or out_port == 4:
+                        self.logger.info(f"[DPID {hex(dpid)}] Flooding packet from trunk port (VLAN {vlan_pkt.vid})")
                         actions = [
                             datapath.ofproto_parser.OFPActionStripVlan(),
                             datapath.ofproto_parser.OFPActionOutput(2),
@@ -281,10 +276,11 @@ class SimpleSwitch(app_manager.RyuApp):
                         return
             # Tx (to trunk port)
             elif msg.in_port == 4:
+                out_port = 1
                 match = datapath.ofproto_parser.OFPMatch(in_port=msg.in_port)
                 actions = [
                     datapath.ofproto_parser.OFPActionVlanVid(VLANID[dpid][200]),
-                    datapath.ofproto_parser.OFPActionOutput(1)
+                    datapath.ofproto_parser.OFPActionOutput(out_port)
                 ]
             # Access ports (2 or 3)
             else:  # msg.in_port is 2 or 3
@@ -298,6 +294,7 @@ class SimpleSwitch(app_manager.RyuApp):
                     out_port = ofproto.OFPP_FLOOD
 
                 if out_port == ofproto.OFPP_FLOOD or out_port == 4:
+                    self.logger.info(f"[DPID {hex(dpid)}] Flooding packet from access port {msg.in_port}")
                     # actions list are executed in order...
                     if msg.in_port == 2:
                         actions = [
@@ -314,6 +311,7 @@ class SimpleSwitch(app_manager.RyuApp):
                     self.L2_send(datapath, msg.in_port, actions, msg)
                     return
                 elif out_port == 1:
+                    self.logger.info(f"[DPID {hex(dpid)}] Sending packet to trunk port (from access port {msg.in_port})")
                     actions = [
                         datapath.ofproto_parser.OFPActionVlanVid(VLANID[dpid][100]),
                         datapath.ofproto_parser.OFPActionOutput(out_port)
@@ -323,13 +321,13 @@ class SimpleSwitch(app_manager.RyuApp):
                         datapath.ofproto_parser.OFPActionOutput(out_port)
                     ]
 
+                self.logger.info(f"[DPID {hex(dpid)}] {msg.in_port} -> {out_port}, "
+                                        f"{src} -> {dst}, VLANID {vlan_pkt.vid if vlan_pkt else 'None'}")
+
             self.L2_send(datapath, msg.in_port, actions, msg)
             self.add_flow(datapath, match, actions)
             return
-        
-        self.logger.info(f"[DPID {hex(dpid)}] {msg.in_port} -> {out_port}, "
-                        f"{src} -> {dst}, VLANID {vlan_pkt.vid if vlan_pkt else 'None'}")
-                 
+
 
     def arp_reply(self, datapath, eth, arp_pkt, in_port):
         if arp_pkt.opcode is not arp.ARP_REQUEST:

@@ -1,9 +1,11 @@
 # General Python
 *.pyc
 __pycache__/
+**/__pycache__/
 
 # VSCode
 .vscode/
+**/.vscode/
 
 # Vagrant
 .vagrant/
@@ -24,13 +26,3 @@ build/
 # Packet captures and logs
 *.pcap
 *.log
-*.txt
-
-# Ignore screenshots
-*.png
-
-# Ignore all in lab5/__pycache__
-lab5/__pycache__/
-
-# Ignore all in lab4/__pycache__
-lab4/__pycache__/
