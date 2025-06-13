@@ -1,3 +1,4 @@
+#!/usr/bin/python
 #3581
 
 
@@ -36,45 +37,41 @@ from ryu.lib.packet import ether_types
 from ryu.lib.packet import udp
 from ryu.lib.packet import vlan
 
-# Router and host interface IPs and MACs
-# Router 1: left (192.168.1.1, 00:00:00:00:01:01)
-# Router 2: left (192.168.3.2, 00:00:00:00:03:02), right (192.168.2.1, 00:00:00:00:02:01)
 ROUTER1_LEFT_IP = "192.168.1.1"
 ROUTER1_LEFT_MAC = "00:00:00:00:01:01"
 ROUTER1_RIGHT_IP = "192.168.3.1"
 ROUTER1_RIGHT_MAC = "00:00:00:00:03:01"
-# Added public (top) interface for NAT
-ROUTER1_TOP_IP = "200.0.0.1"
-ROUTER1_TOP_MAC = "00:00:00:00:04:01"
 ROUTER2_LEFT_IP = "192.168.3.2"
 ROUTER2_LEFT_MAC = "00:00:00:00:03:02"
 ROUTER2_RIGHT_IP = "192.168.2.1"
 ROUTER2_RIGHT_MAC = "00:00:00:00:02:01"
 H1_IP = "192.168.1.2"
 H1_MAC = "00:00:00:00:01:02"
-H2_IP = "192.168.1.3"
-H2_MAC = "00:00:00:00:01:03"
-H3_IP = "192.168.2.2"
-H3_MAC = "00:00:00:00:02:02"
-H4_IP = "192.168.2.3"
-H4_MAC = "00:00:00:00:02:03"
-# Added h5 info
+H2_IP = "192.168.2.2"
+H2_MAC = "00:00:00:00:02:02"
+H3_IP = "192.168.2.3"
+H3_MAC = "00:00:00:00:02:03"
+H4_IP = "192.168.1.3"
+H4_MAC = "00:00:00:00:01:03"
+
+ROUTER1_TOP_IP = "200.0.0.1"
+ROUTER1_TOP_MAC = "00:00:00:00:04:01"
 H5_IP = "200.0.0.2"
 H5_MAC = "00:00:00:00:04:02"
 
 ROUTING_TABLE = {
     0x1A: {
         H1_IP: 2,
-        H2_IP: 2,
+        H2_IP: 1,
         H3_IP: 1,
-        H4_IP: 1,
+        H4_IP: 2,
         H5_IP: 3
     },
     0x1B: {
         H1_IP: 1,
-        H2_IP: 1,
+        H2_IP: 2,
         H3_IP: 2,
-        H4_IP: 2,
+        H4_IP: 1,
         H5_IP: 1
     }
 }

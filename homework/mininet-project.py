@@ -1,8 +1,5 @@
-#3581
-
-
-
 #!/usr/bin/python
+#3581
 
 #You may need to first execute: mn -c
 

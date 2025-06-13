@@ -31,9 +31,6 @@ from ryu.lib.packet import ipv4
 from ryu.lib.packet import ether_types
 from ryu.lib.packet import vlan
 
-# Router and host interface IPs and MACs
-# Router 1: left (192.168.1.1, 00:00:00:00:01:01)
-# Router 2: left (192.168.3.2, 00:00:00:00:03:02), right (192.168.2.1, 00:00:00:00:02:01)
 ROUTER1_LEFT_IP = "192.168.1.1"
 ROUTER1_LEFT_MAC = "00:00:00:00:01:01"
 ROUTER1_RIGHT_IP = "192.168.3.1"
